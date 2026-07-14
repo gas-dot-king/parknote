@@ -1,0 +1,10 @@
+import org.gradle.api.tasks.wrapper.Wrapper
+
+plugins {
+    id 'com.android.application' version '8.13.0' apply false
+}
+
+tasks.named('wrapper', Wrapper) {
+    gradleVersion = '8.14.3'
+    distributionType = Wrapper.DistributionType.ALL
+}

@@ -6,6 +6,7 @@
     <string name="edit">수정</string>
     <string name="delete">삭제</string>
     <string name="parking_timer">출차 시간 알림</string>
+    <string name="timer_notice">절전 모드에서는 알림이 조금 늦을 수 있어요.</string>
     <string name="settings">설정</string>
     <string name="custom_input">직접 위치 입력</string>
     <string name="habit_title">나가기 전 체크</string>

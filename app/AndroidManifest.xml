@@ -8,18 +8,18 @@
         android:maxSdkVersion="30" />
     <!-- 주차/리마인더 알림 표시 -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <!-- 습관 리마인더 정시 알람 -->
-    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"
-        android:maxSdkVersion="32" />
-    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <!-- 재부팅 후 알람 재예약 -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- 블루투스가 없는 태블릿/Chromebook에서도 수동 기록은 사용할 수 있다. -->
+    <uses-feature
+        android:name="android.hardware.bluetooth"
+        android:required="false" />
 
     <application
         android:label="@string/app_name"
         android:icon="@mipmap/ic_launcher"
         android:theme="@style/AppTheme"
-        android:allowBackup="true">
+        android:allowBackup="false">
 
         <activity
             android:name=".MainActivity"

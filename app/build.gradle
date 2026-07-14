@@ -1,0 +1,92 @@
+import java.util.Properties
+
+plugins {
+    id 'com.android.application'
+}
+
+def releasePropertiesFile = rootProject.file('keystore.properties')
+def releaseProperties = new Properties()
+def hasReleaseSigning = releasePropertiesFile.isFile()
+if (hasReleaseSigning) {
+    releasePropertiesFile.withInputStream { releaseProperties.load(it) }
+    ['storeFile', 'storePassword', 'keyAlias', 'keyPassword'].each { key ->
+        if (!releaseProperties.getProperty(key)?.trim()) {
+            throw new GradleException("keystore.properties에 ${key} 값을 설정하세요.")
+        }
+    }
+}
+
+android {
+    namespace 'com.ohdduck.parknote'
+    compileSdk 35
+
+    defaultConfig {
+        // Google Play에 첫 AAB를 올리면 이 ID는 영구적으로 고정된다.
+        applicationId 'com.ohdduck.parknote'
+        minSdk 26
+        targetSdk 35
+        versionCode 11
+        versionName '2.5'
+    }
+
+    signingConfigs {
+        debug {
+            def projectDebugKeystore = rootProject.file('debug.keystore')
+            if (projectDebugKeystore.isFile()) {
+                storeFile projectDebugKeystore
+                storePassword 'android'
+                keyAlias 'androiddebugkey'
+                keyPassword 'android'
+            }
+        }
+        if (hasReleaseSigning) {
+            release {
+                storeFile rootProject.file(releaseProperties.getProperty('storeFile'))
+                storePassword releaseProperties.getProperty('storePassword')
+                keyAlias releaseProperties.getProperty('keyAlias')
+                keyPassword releaseProperties.getProperty('keyPassword')
+            }
+        }
+    }
+
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.debug
+        }
+        release {
+            // 난독화 여부와 R8 예외는 기존 rules.pro에서 관리한다.
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'),
+                    rootProject.file('rules.pro')
+            if (hasReleaseSigning) {
+                signingConfig signingConfigs.release
+            }
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    sourceSets {
+        main {
+            manifest.srcFile 'AndroidManifest.xml'
+            java.srcDirs = ['src']
+            res.srcDirs = ['res']
+        }
+    }
+}
+
+tasks.configureEach {
+    if (name == 'preReleaseBuild' || name == 'bundleRelease' || name == 'assembleRelease') {
+        doFirst {
+            if (!hasReleaseSigning) {
+                throw new GradleException(
+                        '출시 빌드에는 저장소 밖의 keystore.properties와 upload key가 필요합니다. ' +
+                        'keystore.properties.example을 복사해 설정하세요.')
+            }
+        }
+    }
+}

@@ -3,7 +3,7 @@
 "아, 맞다! 어디 댔더라?" 하는 순간을 위해, 주차하고 나오면서 버튼 한 번으로 위치를 기억해 두는 개인용 안드로이드 앱.
 외부 라이브러리 0개, APK 약 57KB. 내 폰에만 설치해서 쓰는 용도.
 
-## 기능 (v2.4)
+## 기능 (v2.5)
 
 ### 브랜드 테마
 - **아맞다주차!**: 런처·위젯·퀵설정 타일·알림 채널까지 같은 이름으로 표시
@@ -21,6 +21,7 @@
 - **전체 주차 기록**: 설정에서 모든 기록을 열어, 삭제한 주차장/차량에 속한 기록도 확인·수정·삭제
 - **기록 수정·메모**: 지금 주차한 곳의 **수정** 또는 최근 항목을 탭해 구역·주차장·차량·시각·메모 수정
 - **출차 시간 알림**: 지금 주차한 곳 카드에서 30분/1시간/2시간 뒤 또는 원하는 시각으로 알림 설정
+  - Android 절전 모드에서는 알림이 조금 늦을 수 있으며, 별도 정확한 알람 권한은 요청하지 않음
 - **삭제**: 카드의 "삭제" 또는 수정 화면의 "삭제"로 기록 취소 (확인 다이얼로그 포함)
 
 ### 홈 화면 위젯
@@ -56,14 +57,29 @@
 
 ## 빌드
 
+### 개발·직접 설치용 APK
+
 ```powershell
 powershell -ExecutionPolicy Bypass -File build.ps1
 ```
 
 결과물: `dist\AMatdaParking.apk`
 
-Gradle 없이 Android SDK 도구를 직접 사용한다 (aapt2 → javac → R8 → zipalign → apksigner).
-R8이 데드코드 제거/최적화를 수행하며, 유지 규칙은 `rules.pro`에 있다 (새 Activity/Receiver를 추가하면 여기에 -keep 추가 필요).
+`build.ps1`은 Android SDK 도구(aapt2 → javac → R8 → zipalign → apksigner)로 직접 설치할 APK를 만든다.
+
+### Google Play용 서명 AAB
+
+출시용 업로드 키를 만든 뒤 `keystore.properties.example`을 `keystore.properties`로 복사해 실제 값만 로컬에 입력한다.
+키와 비밀번호는 Git에 올리지 않는다.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File build-release.ps1
+```
+
+결과물: `dist\AMatdaParking-release.aab`
+
+Play 출시 절차, 스토어 문구, 개인정보 처리방침 템플릿, 테스터 안내는 [docs](docs/GOOGLE_PLAY_RELEASE.md)에 있다.
+R8 유지 규칙은 `rules.pro`에 있다 (새 Activity/Receiver를 추가하면 여기에 -keep 추가 필요).
 필요한 것: `ANDROID_HOME`의 SDK (build-tools 35.0.0, platform android-35), `JAVA_HOME`의 JDK.
 
 ## 폰에 설치 후 할 일
@@ -108,6 +124,9 @@ app/
     ParkTileService.java     # 퀵설정 타일
   res/                       # 레이아웃, 위젯, 색, 아이콘
 build.ps1                    # 원커맨드 빌드 스크립트
+build-release.ps1            # 업로드 키로 Google Play용 AAB 생성
+app/build.gradle             # 출시 서명·AAB를 위한 Gradle 설정
+docs/                        # Play Console·스토어·개인정보·테스트 자료
 rules.pro                    # R8 유지 규칙 (새 컴포넌트 추가 시 -keep 필요)
 ```
 

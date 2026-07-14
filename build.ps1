@@ -1,12 +1,12 @@
-# 아맞다주차! APK build script
+# 아맞다주차! 개발·직접 설치용 APK build script (Google Play 출시는 build-release.ps1 사용)
 # Usage:  powershell -ExecutionPolicy Bypass -File build.ps1
 # Output: dist\AMatdaParking.apk
 
 $ErrorActionPreference = "Stop"
 
 # ---- config -----------------------------------------------------------
-$VersionCode = 10
-$VersionName = "2.4"
+$VersionCode = 11
+$VersionName = "2.5"
 $MinSdk      = 26
 $TargetSdk   = 35
 # -----------------------------------------------------------------------

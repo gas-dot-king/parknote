@@ -10,7 +10,7 @@ import android.net.Uri;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-/** 기록별 출차 알림 예약/해제. PendingIntent의 식별자는 항상 recordId다. */
+/** 기록별 출차 알림 예약/해제. 절전 상태에서는 알림이 다소 늦어질 수 있다. */
 class ParkingTimers {
 
     static final String ACTION = "com.ohdduck.parknote.PARKING_TIMER";
@@ -36,12 +36,9 @@ class ParkingTimers {
         AlarmManager am = (AlarmManager) c.getSystemService(Context.ALARM_SERVICE);
         if (am == null) return;
         PendingIntent pi = pending(c, recordId, due);
-        try {
-            am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, due, pi);
-        } catch (SecurityException e) {
-            // 정확한 알람 권한이 없을 때도 타이머 자체는 동작하도록 근사 알람으로 폴백.
-            am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, due, pi);
-        }
+        // Google Play의 제한된 정확한 알람 권한을 요청하지 않는다. 출차 알림은 배터리 정책에
+        // 따라 조금 늦을 수 있지만, 앱이 절전 상태여도 가능한 한 빨리 전달된다.
+        am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, due, pi);
     }
 
     static void cancel(Context c, String recordId) {

@@ -43,13 +43,9 @@ class Reminders {
         if (cal.getTimeInMillis() <= System.currentTimeMillis()) {
             cal.add(Calendar.DAY_OF_YEAR, 1);
         }
-        try {
-            am.setExactAndAllowWhileIdle(
-                    AlarmManager.RTC_WAKEUP, cal.getTimeInMillis(), pending(c, name));
-        } catch (SecurityException e) {
-            // 정확한 알람 권한이 없으면 근사 알람으로 (몇 분 늦을 수 있음)
-            am.set(AlarmManager.RTC_WAKEUP, cal.getTimeInMillis(), pending(c, name));
-        }
+        // 별도 정확한 알람 권한 없이 동작한다. 절전 모드에서는 수 분 늦어질 수 있다.
+        am.setAndAllowWhileIdle(
+                AlarmManager.RTC_WAKEUP, cal.getTimeInMillis(), pending(c, name));
     }
 
     static void cancel(Context c, String name) {

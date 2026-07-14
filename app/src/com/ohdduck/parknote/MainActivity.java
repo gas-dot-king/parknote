@@ -967,6 +967,7 @@ public class MainActivity extends Activity {
 
         new AlertDialog.Builder(this)
                 .setTitle(getString(R.string.parking_timer))
+                .setMessage(getString(R.string.timer_notice))
                 .setItems(items.toArray(new String[0]), (d, which) -> {
                     long value = values.get(which);
                     if (value >= 0) callback.onChosen(value);
