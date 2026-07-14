@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 버튼 텍스트는 ParkWidgetProvider가 설정된 자주 쓰는 구역에서 채운다.
+     XML의 text는 위젯을 처음 놓은 직후 잠깐 보이는 초기값. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/bg_card"
+    android:orientation="vertical"
+    android:padding="10dp">
+
+    <TextView
+        android:id="@+id/widgetStatus"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingLeft="6dp"
+        android:paddingBottom="6dp"
+        android:ellipsize="end"
+        android:singleLine="true"
+        android:text="@string/widget_empty"
+        android:textColor="@color/text"
+        android:textSize="13sp"
+        android:fontFamily="sans-serif-medium" />
+
+    <LinearLayout android:id="@+id/widgetRow1" style="@style/ZoneRow">
+        <Button android:id="@+id/btnB1A" style="@style/ZoneButton" android:text="B1-A" />
+        <Button android:id="@+id/btnB1B" style="@style/ZoneButton" android:text="B1-B" />
+    </LinearLayout>
+
+    <LinearLayout android:id="@+id/widgetRow2" style="@style/ZoneRow">
+        <Button android:id="@+id/btnB2A" style="@style/ZoneButton" android:text="B2-A" />
+        <Button android:id="@+id/btnB2B" style="@style/ZoneButton" android:text="B2-B" />
+    </LinearLayout>
+
+    <LinearLayout android:id="@+id/widgetRow3" style="@style/ZoneRow">
+        <Button android:id="@+id/btnB3A" style="@style/ZoneButton" android:text="B3-A" />
+        <Button android:id="@+id/btnB3B" style="@style/ZoneButton" android:text="B3-B" />
+    </LinearLayout>
+</LinearLayout>

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">아맞다주차!</string>
+    <string name="brand_tagline">아맞다, 여기 댔지.</string>
+    <string name="current_label">지금 주차한 곳</string>
+    <string name="edit">수정</string>
+    <string name="delete">삭제</string>
+    <string name="parking_timer">출차 시간 알림</string>
+    <string name="settings">설정</string>
+    <string name="custom_input">직접 위치 입력</string>
+    <string name="habit_title">나가기 전 체크</string>
+    <string name="add">추가</string>
+    <string name="history_title">최근에 댄 곳</string>
+    <string name="widget_empty">아직 기억한 위치가 없어요</string>
+    <string name="empty_location">아직 없어요</string>
+</resources>

@@ -1,0 +1,11 @@
+# Generated Android build outputs
+/build/
+/dist/
+*.idsig
+
+# Local signing key and editor/IDE files
+/debug.keystore
+/.vscode/
+/.gradle/
+local.properties
+*.iml

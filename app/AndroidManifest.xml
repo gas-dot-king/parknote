@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.ohdduck.parknote">
+
+    <!-- 차량 블루투스 끊김 감지 (기기 이름 읽기) -->
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.BLUETOOTH"
+        android:maxSdkVersion="30" />
+    <!-- 주차/리마인더 알림 표시 -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- 습관 리마인더 정시 알람 -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"
+        android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <!-- 재부팅 후 알람 재예약 -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <application
+        android:label="@string/app_name"
+        android:icon="@mipmap/ic_launcher"
+        android:theme="@style/AppTheme"
+        android:allowBackup="true">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- 홈 화면 위젯 -->
+        <receiver
+            android:name=".ParkWidgetProvider"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_park_info" />
+        </receiver>
+
+        <!-- 차량 블루투스 끊김 → 주차 알림, 재연결 → 알림 취소 (순간 끊김 오탐 방지).
+             블루투스 스택은 시스템 uid가 아니라 exported="true"가 필수. -->
+        <receiver
+            android:name=".BtReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.bluetooth.device.action.ACL_CONNECTED" />
+                <action android:name="android.bluetooth.device.action.ACL_DISCONNECTED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- 습관 리마인더 알람 + 부팅 후 재예약.
+             알람 PendingIntent(자기 앱)와 BOOT_COMPLETED(시스템)는 비공개여도 수신됨 -->
+        <receiver
+            android:name=".ReminderReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- 기록별 출차 타이머. AlarmManager의 명시적 PendingIntent로만 호출된다. -->
+        <receiver
+            android:name=".ParkingTimerReceiver"
+            android:exported="false" />
+
+        <!-- 퀵설정 타일: 현재 주차 위치 표시 + 앱 열기 -->
+        <service
+            android:name=".ParkTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_notif"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+    </application>
+</manifest>
