@@ -9,6 +9,8 @@
     <string name="timer_notice">절전 모드에서는 알림이 조금 늦을 수 있어요.</string>
     <string name="settings">설정</string>
     <string name="custom_input">직접 위치 입력</string>
+    <string name="zone_prompt">어디에 대셨어요?</string>
+    <string name="zone_edit">구역 편집</string>
     <string name="habit_title">나가기 전 체크</string>
     <string name="add">추가</string>
     <string name="history_title">최근에 댄 곳</string>

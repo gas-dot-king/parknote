@@ -5,14 +5,17 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.DatePickerDialog;
 import android.app.TimePickerDialog;
+import android.content.ActivityNotFoundException;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.graphics.Typeface;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.provider.Settings;
 import android.text.InputType;
 import android.text.Spannable;
 import android.text.SpannableStringBuilder;
@@ -42,6 +45,11 @@ import java.util.Locale;
 public class MainActivity extends Activity {
 
     static final String EXTRA_EDIT_RECORD_ID = "edit_record_id";
+    private static final int REQ_EXPORT = 20;
+    private static final int REQ_IMPORT = 21;
+    private static final int REQ_LOCATION_FG = 22;
+    private static final int REQ_LOCATION_BG = 23;
+    private static final int REQ_LOCATION_CAPTURE = 24;
     private static final int HISTORY_SHOWN = 5;
     private static final int MAX_ZONES_PER_GROUP = 30;
     private static final int MAX_ZONE_NAME_LENGTH = 24;
@@ -62,7 +70,6 @@ public class MainActivity extends Activity {
     private int colorText;
     private int colorSubtext;
     private int colorAccent;
-    private int colorOnAccent;
     private Typeface medium;
     private String pendingEditRecordId;
 
@@ -82,6 +89,13 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        // 첫 실행이면 주차장 격자와 차량 블루투스부터 정하게 한다.
+        if (!Store.isOnboarded(this)) {
+            startActivity(new Intent(this, OnboardingActivity.class));
+            finish();
+            return;
+        }
         setContentView(R.layout.activity_main);
 
         // Android 15+ 강제 엣지-투-엣지: 상태바/내비게이션 바 높이만큼 여백 확보
@@ -97,7 +111,6 @@ public class MainActivity extends Activity {
         colorText = getColor(R.color.text);
         colorSubtext = getColor(R.color.subtext);
         colorAccent = getColor(R.color.accent_text);
-        colorOnAccent = getColor(R.color.on_accent);
         medium = Typeface.create("sans-serif-medium", Typeface.NORMAL);
 
         statusZone = findViewById(R.id.statusZone);
@@ -128,6 +141,7 @@ public class MainActivity extends Activity {
             return true;
         });
         findViewById(R.id.btnCustom).setOnClickListener(v -> showCustomInput());
+        findViewById(R.id.btnEditZones).setOnClickListener(v -> showZoneSettings());
         findViewById(R.id.btnAddHabit).setOnClickListener(v -> showAddHabit());
 
         requestNeededPermissions();
@@ -245,10 +259,12 @@ public class MainActivity extends Activity {
     }
 
     private void rebuildZoneGrids() {
-        grid.removeAllViews();
         etcGrid.removeAllViews();
 
-        buildGrid(grid, Store.mainZones(this), 2, 64, 18, colorText);
+        // 층 × 구역 격자. 층이 없는 주차장은 구역 버튼만 흐르는 목록이 된다.
+        ZoneGrid.build(this, grid, Store.activeRows(this), Store.activeCols(this),
+                Store.activeSep(this), false, this::record);
+
         String[] etc = Store.etcZones(this);
         etcGrid.setVisibility(etc.length == 0 ? View.GONE : View.VISIBLE);
         if (etc.length > 0) buildGrid(etcGrid, etc, 4, 42, 13, colorSubtext);
@@ -296,7 +312,9 @@ public class MainActivity extends Activity {
                 "현재 주차장 관리",
                 "차량 전환 · " + Store.activeVehicleName(this),
                 "현재 차량 관리",
-                "전체 주차 기록"};
+                "전체 주차 기록",
+                "위치로 알림 조절 · " + (Store.locationFilterOn(this) ? "켜짐" : "꺼짐"),
+                "백업 · 복원"};
         new AlertDialog.Builder(this)
                 .setTitle(getString(R.string.app_name) + " 설정")
                 .setItems(items, (d, which) -> {
@@ -304,9 +322,235 @@ public class MainActivity extends Activity {
                     else if (which == 1) showCurrentProfileOptions();
                     else if (which == 2) showVehiclePicker();
                     else if (which == 3) showCurrentVehicleOptions();
-                    else showAllParkingHistory();
+                    else if (which == 4) showAllParkingHistory();
+                    else if (which == 5) showLocationFilterMenu();
+                    else showBackupMenu();
                 })
                 .setNegativeButton("닫기", null)
+                .show();
+    }
+
+    // ---------- 위치로 알림 조절 ----------
+
+    private void showLocationFilterMenu() {
+        boolean on = Store.locationFilterOn(this);
+        String name = Store.activeProfileName(this);
+        boolean hasCoords = Store.hasCoords(Store.activeProfile(this));
+
+        ArrayList<String> items = new ArrayList<>();
+        items.add(on ? "끄기" : "켜기");
+        items.add(hasCoords
+                ? "'" + name + "' 위치 다시 잡기"
+                : "지금 위치를 '" + name + "'으로 저장");
+        if (hasCoords) items.add("'" + name + "' 위치 지우기");
+
+        StringBuilder message = new StringBuilder();
+        message.append("등록한 주차장 근처에서 차에서 내리면 평소대로 알리고, ")
+                .append("그 밖에서는 소리 없이 알림함에만 남겨요.\n")
+                .append("위치를 알 수 없을 때는 놓치지 않도록 평소대로 알려요.\n\n")
+                .append("현재 ").append(on ? "켜짐" : "꺼짐").append(" · ")
+                .append("'").append(name).append("' 위치 ")
+                .append(hasCoords ? "등록됨 (반경 " + Store.DEFAULT_RADIUS_M + "m)" : "없음");
+        if (on && !Store.anyProfileHasCoords(this)) {
+            message.append("\n\n※ 등록된 위치가 하나도 없어 지금은 평소와 똑같이 동작해요.");
+        }
+
+        new AlertDialog.Builder(this)
+                .setTitle("위치로 알림 조절")
+                .setMessage(message)
+                .setItems(items.toArray(new String[0]), (d, which) -> {
+                    if (which == 0) {
+                        if (on) {
+                            Store.setLocationFilter(this, false);
+                            Toast.makeText(this, "위치 조절을 껐어요", Toast.LENGTH_SHORT).show();
+                        } else {
+                            enableLocationFilter();
+                        }
+                    } else if (which == 1) {
+                        captureProfileLocation();
+                    } else {
+                        Store.clearProfileCoords(this, Store.activeProfileId(this));
+                        Toast.makeText(this, "위치를 지웠어요", Toast.LENGTH_SHORT).show();
+                    }
+                })
+                .setNegativeButton("닫기", null)
+                .show();
+    }
+
+    private void enableLocationFilter() {
+        if (!Nearby.hasForegroundPermission(this)) {
+            requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION},
+                    REQ_LOCATION_FG);
+            return;
+        }
+        if (Build.VERSION.SDK_INT >= 29 && !Nearby.hasPermission(this)) {
+            requestPermissions(new String[]{Manifest.permission.ACCESS_BACKGROUND_LOCATION},
+                    REQ_LOCATION_BG);
+            return;
+        }
+        Store.setLocationFilter(this, true);
+        if (Store.anyProfileHasCoords(this)) {
+            Toast.makeText(this, "위치 조절을 켰어요", Toast.LENGTH_SHORT).show();
+        } else {
+            new AlertDialog.Builder(this)
+                    .setMessage("이제 주차장 위치를 등록하면 돼요. 지금 '"
+                            + Store.activeProfileName(this) + "'에 계신가요?")
+                    .setPositiveButton("지금 위치 저장", (d, w) -> captureProfileLocation())
+                    .setNegativeButton("나중에", null)
+                    .show();
+        }
+    }
+
+    /** 백그라운드 위치는 시스템 다이얼로그가 아니라 설정 화면에서만 켤 수 있는 기기가 많다. */
+    private void showBackgroundLocationHelp() {
+        new AlertDialog.Builder(this)
+                .setTitle("'항상 허용'이 필요해요")
+                .setMessage("차에서 내리는 순간은 앱이 꺼져 있을 때라, 위치 권한을 "
+                        + "'항상 허용'으로 바꿔야 어느 주차장인지 알 수 있어요.\n\n"
+                        + "설정 → 권한 → 위치 → '항상 허용'을 선택해 주세요. "
+                        + "좌표는 기기 안에서만 쓰고 어디로도 보내지 않아요.")
+                .setPositiveButton("설정 열기", (d, w) -> {
+                    try {
+                        startActivity(new Intent(
+                                Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                Uri.fromParts("package", getPackageName(), null)));
+                    } catch (ActivityNotFoundException e) {
+                        Toast.makeText(this, "설정 화면을 열지 못했어요",
+                                Toast.LENGTH_SHORT).show();
+                    }
+                })
+                .setNegativeButton("나중에", null)
+                .show();
+    }
+
+    private void captureProfileLocation() {
+        if (!Nearby.hasForegroundPermission(this)) {
+            requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION},
+                    REQ_LOCATION_CAPTURE);
+            return;
+        }
+        String profileId = Store.activeProfileId(this);
+        String name = Store.activeProfileName(this);
+        Toast.makeText(this, "위치를 잡는 중이에요…", Toast.LENGTH_SHORT).show();
+        Nearby.requestFix(this, fix -> {
+            // 측위는 최대 15초 걸린다. 그 사이 화면을 닫았으면 다이얼로그를 띄우지 않는다.
+            if (isFinishing() || isDestroyed()) return;
+            if (fix == null) {
+                new AlertDialog.Builder(this)
+                        .setTitle("위치를 잡지 못했어요")
+                        .setMessage("위치 서비스가 꺼져 있거나 실내라 신호가 약할 수 있어요.\n"
+                                + "지하 주차장이라면 지상으로 올라와서, 또는 지도 앱으로 "
+                                + "현재 위치를 한 번 확인한 뒤 다시 시도해 주세요.")
+                        .setPositiveButton("확인", null)
+                        .show();
+                return;
+            }
+            new AlertDialog.Builder(this)
+                    .setTitle("'" + name + "' 위치로 저장할까요?")
+                    .setMessage(Nearby.describeAccuracy(fix) + "\n\n"
+                            + "이 지점 반경 " + Store.DEFAULT_RADIUS_M + "m 안에서 차에서 내리면 "
+                            + "'" + name + "'에 댄 것으로 봅니다.\n"
+                            + "지하 주차장은 신호가 안 잡히니, 진입 직전에 잡힌 좌표로 판정해요. "
+                            + "그래서 반경을 넉넉히 잡습니다.")
+                    .setPositiveButton("저장", (d, w) -> {
+                        Store.setProfileCoords(this, profileId,
+                                fix.getLatitude(), fix.getLongitude(), Store.DEFAULT_RADIUS_M);
+                        Toast.makeText(this, "'" + name + "' 위치를 저장했어요",
+                                Toast.LENGTH_SHORT).show();
+                    })
+                    .setNegativeButton("취소", null)
+                    .show();
+        });
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] results) {
+        super.onRequestPermissionsResult(requestCode, permissions, results);
+        boolean granted = results.length > 0
+                && results[0] == PackageManager.PERMISSION_GRANTED;
+        if (requestCode == REQ_LOCATION_FG) {
+            if (granted) enableLocationFilter();
+            else Toast.makeText(this, "위치 권한이 없으면 이 기능을 쓸 수 없어요",
+                    Toast.LENGTH_LONG).show();
+        } else if (requestCode == REQ_LOCATION_BG) {
+            if (granted) enableLocationFilter();
+            else showBackgroundLocationHelp();
+        } else if (requestCode == REQ_LOCATION_CAPTURE) {
+            if (granted) captureProfileLocation();
+            else Toast.makeText(this, "위치 권한이 없으면 주차장 위치를 저장할 수 없어요",
+                    Toast.LENGTH_LONG).show();
+        }
+    }
+
+    // ---------- 백업 · 복원 ----------
+
+    private void showBackupMenu() {
+        new AlertDialog.Builder(this)
+                .setTitle("백업 · 복원")
+                .setMessage("기록은 이 기기 안에만 있어요. 앱을 지웠다 깔거나 폰을 바꾸면 사라지니, "
+                        + "가끔 파일로 내보내 두세요.")
+                .setItems(new String[]{"파일로 내보내기", "백업에서 가져오기"}, (d, which) -> {
+                    if (which == 0) startBackupExport();
+                    else startBackupImport();
+                })
+                .setNegativeButton("닫기", null)
+                .show();
+    }
+
+    private void startBackupExport() {
+        try {
+            startActivityForResult(new Intent(Intent.ACTION_CREATE_DOCUMENT)
+                    .addCategory(Intent.CATEGORY_OPENABLE)
+                    .setType(Backup.MIME)
+                    .putExtra(Intent.EXTRA_TITLE, Backup.suggestedFileName()), REQ_EXPORT);
+        } catch (ActivityNotFoundException e) {
+            Toast.makeText(this, "파일을 저장할 앱을 찾지 못했어요", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void startBackupImport() {
+        try {
+            // 파일 관리자마다 .json을 application/json으로 안 보는 경우가 있어 전체를 연다.
+            startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT)
+                    .addCategory(Intent.CATEGORY_OPENABLE)
+                    .setType("*/*"), REQ_IMPORT);
+        } catch (ActivityNotFoundException e) {
+            Toast.makeText(this, "파일을 고를 앱을 찾지 못했어요", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (resultCode != RESULT_OK || data == null || data.getData() == null) return;
+        Uri uri = data.getData();
+        if (requestCode == REQ_EXPORT) {
+            String error = Backup.writeTo(this, uri);
+            Toast.makeText(this, error == null ? "백업을 저장했어요" : error,
+                    Toast.LENGTH_LONG).show();
+        } else if (requestCode == REQ_IMPORT) {
+            confirmBackupImport(uri);
+        }
+    }
+
+    private void confirmBackupImport(Uri uri) {
+        Backup.Loaded loaded = Backup.readFrom(this, uri);
+        if (!loaded.ok()) {
+            Toast.makeText(this, loaded.error, Toast.LENGTH_LONG).show();
+            return;
+        }
+        new AlertDialog.Builder(this)
+                .setTitle("백업에서 가져오기")
+                .setMessage(loaded.summary
+                        + "\n\n지금 이 기기에 있는 주차 기록·주차장·차량·체크가 모두 사라지고 "
+                        + "백업 내용으로 바뀝니다. 예약된 알림도 다시 맞춰져요.")
+                .setPositiveButton("가져오기", (d, w) -> {
+                    Store.importData(this, loaded.data);
+                    rebuildZoneGrids();
+                    render();
+                    Toast.makeText(this, "백업을 가져왔어요", Toast.LENGTH_SHORT).show();
+                })
+                .setNegativeButton("취소", null)
                 .show();
     }
 
@@ -485,7 +729,7 @@ public class MainActivity extends Activity {
         form.setOrientation(LinearLayout.VERTICAL);
         form.setPadding(dp(20), dp(4), dp(20), dp(8));
 
-        TextView guide = settingText("블루투스 이름을 비워 두면 수동 기록 전용 차량이 돼요.",
+        TextView guide = settingText("블루투스를 고르지 않으면 수동 기록 전용 차량이 돼요.",
                 13, colorSubtext);
         form.addView(guide);
         TextView nameLabel = settingText("차량 이름", 14, colorText);
@@ -494,23 +738,25 @@ public class MainActivity extends Activity {
         nameLp.topMargin = dp(16);
         form.addView(nameLabel, nameLp);
         EditText name = new EditText(this);
-        name.setHint("예: 레이, 가족 차");
+        name.setHint("예: 내 차, 가족 차");
         name.setSingleLine(true);
         name.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
         name.setText(adding ? "" : existing.optString("n", ""));
         form.addView(name);
 
-        TextView btLabel = settingText("차량 블루투스 이름 (선택)", 14, colorText);
+        TextView btLabel = settingText("차 블루투스 (선택)", 14, colorText);
         LinearLayout.LayoutParams btLp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         btLp.topMargin = dp(12);
         form.addView(btLabel, btLp);
-        EditText bt = new EditText(this);
-        bt.setHint("예: Ray");
-        bt.setSingleLine(true);
-        bt.setInputType(InputType.TYPE_CLASS_TEXT);
-        bt.setText(adding ? "" : existing.optString("b", ""));
-        form.addView(bt);
+        // 이름을 손으로 적으면 한 글자만 달라도 자동 알림이 조용히 안 뜬다 → 목록에서 고르게 한다.
+        final String[] btName = {adding ? "" : existing.optString("b", "")};
+        Button btButton = editorButton(btButtonText(btName[0]));
+        btButton.setOnClickListener(v -> BtPicker.show(this, btName[0], picked -> {
+            btName[0] = picked;
+            btButton.setText(btButtonText(picked));
+        }));
+        form.addView(btButton);
 
         AlertDialog dlg = new AlertDialog.Builder(this)
                 .setTitle(adding ? "차량 추가" : "차량 정보 수정")
@@ -522,9 +768,9 @@ public class MainActivity extends Activity {
                 .setOnClickListener(v -> {
                     try {
                         if (adding) Store.addVehicle(this, name.getText().toString(),
-                                bt.getText().toString());
+                                btName[0]);
                         else Store.updateVehicle(this, existing.optString("id"),
-                                name.getText().toString(), bt.getText().toString());
+                                name.getText().toString(), btName[0]);
                     } catch (IllegalArgumentException e) {
                         name.setError(e.getMessage());
                         name.requestFocus();
@@ -555,30 +801,45 @@ public class MainActivity extends Activity {
                 .show();
     }
 
-    /** 큰 버튼/작은 버튼 목록을 한 줄에 한 구역씩 편집한다. 줄 순서가 표시 순서다. */
+    /**
+     * 층 · 구역 · 기타를 한 줄에 하나씩 편집한다. 층과 구역을 조합해 버튼이 만들어지므로
+     * 층 3개 × 구역 4개면 12칸 격자가 되고, 층을 비우면 구역 이름이 그대로 버튼이 된다.
+     */
     private void showZoneSettings() {
         LinearLayout form = new LinearLayout(this);
         form.setOrientation(LinearLayout.VERTICAL);
         form.setPadding(dp(20), dp(4), dp(20), dp(8));
 
         TextView guide = settingText(
-                "한 줄에 구역 하나씩 입력하세요. 입력한 순서대로 표시돼요. "
-                        + "각 목록은 30개, 이름은 24자까지 저장할 수 있어요.\n"
-                        + "앱에는 모두 표시되고 홈 위젯에는 자주 쓰는 구역의 앞 6개가 "
-                        + "표시되므로 짧은 이름을 권장해요.",
+                "한 줄에 하나씩, 입력한 순서대로 표시돼요.\n"
+                        + "예: 층 B1·B2 + 구역 A·B → B1-A, B1-B, B2-A, B2-B\n"
+                        + "홈 위젯에는 앞 6칸만 표시되므로 짧은 이름을 권장해요.",
                 13, colorSubtext);
         form.addView(guide);
 
-        TextView mainLabel = settingText("자주 쓰는 구역 · 큰 버튼", 14, colorText);
-        LinearLayout.LayoutParams mainLabelLp = new LinearLayout.LayoutParams(
+        TextView rowLabel = settingText("층 · 선택 (최대 " + Store.MAX_ROWS + "개)", 14, colorText);
+        LinearLayout.LayoutParams rowLabelLp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT);
-        mainLabelLp.topMargin = dp(16);
-        form.addView(mainLabel, mainLabelLp);
+        rowLabelLp.topMargin = dp(16);
+        form.addView(rowLabel, rowLabelLp);
 
-        EditText mainInput = zoneEditor(Store.mainZones(this), 4);
-        mainInput.setContentDescription("자주 쓰는 구역, 한 줄에 하나");
-        form.addView(mainInput);
+        EditText rowInput = zoneEditor(Store.activeRows(this), 3);
+        rowInput.setHint("비워 두면 층 없이 구역 버튼만 표시해요");
+        rowInput.setContentDescription("층, 한 줄에 하나, 비워 둘 수 있음");
+        form.addView(rowInput);
+
+        TextView colLabel = settingText("구역 (최대 "
+                + Store.colLimit(Store.activeRows(this)) + "개)", 14, colorText);
+        LinearLayout.LayoutParams colLabelLp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT);
+        colLabelLp.topMargin = dp(16);
+        form.addView(colLabel, colLabelLp);
+
+        EditText colInput = zoneEditor(Store.activeCols(this), 3);
+        colInput.setContentDescription("구역, 한 줄에 하나");
+        form.addView(colInput);
 
         TextView etcLabel = settingText("기타 구역 · 작은 버튼 (선택)", 14, colorText);
         LinearLayout.LayoutParams etcLabelLp = new LinearLayout.LayoutParams(
@@ -587,7 +848,7 @@ public class MainActivity extends Activity {
         etcLabelLp.topMargin = dp(16);
         form.addView(etcLabel, etcLabelLp);
 
-        EditText etcInput = zoneEditor(Store.etcZones(this), 3);
+        EditText etcInput = zoneEditor(Store.etcZones(this), 2);
         etcInput.setHint("비워 두면 기타 버튼을 숨겨요");
         etcInput.setContentDescription("기타 구역, 한 줄에 하나, 비워 둘 수 있음");
         form.addView(etcInput);
@@ -596,7 +857,7 @@ public class MainActivity extends Activity {
         scroll.addView(form);
 
         AlertDialog dlg = new AlertDialog.Builder(this)
-                .setTitle("주차 구역 관리")
+                .setTitle("구역 편집")
                 .setView(scroll)
                 .setPositiveButton("저장", null)
                 .setNegativeButton("취소", null)
@@ -606,16 +867,32 @@ public class MainActivity extends Activity {
         dlg.setOnShowListener(ignored -> {
             // 기본 AlertDialog의 저장 버튼은 검증 실패 때도 닫히므로 직접 처리한다.
             dlg.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+                // 층과 구역은 서로 겹쳐도 되므로(A층 A구역) 중복 검사를 따로 한다.
+                String[] rows = parseZones(rowInput, new HashSet<>(), true);
+                if (rows == null) return;
+                String[] cols = parseZones(colInput, new HashSet<>(), false);
+                if (cols == null) return;
+                if (!withinLimit(rowInput, rows.length, Store.MAX_ROWS, "층")) return;
+                if (!withinLimit(colInput, cols.length, Store.colLimit(rows), "구역")) return;
+
+                // 기타 구역이 격자에서 만들어지는 이름과 겹치면 기록이 어느 쪽인지 모호해진다.
                 HashSet<String> used = new HashSet<>();
-                String[] main = parseZones(mainInput, used, false);
-                if (main == null) return;
+                for (String zone : Store.flatten(rows, cols, Store.DEFAULT_SEP)) {
+                    used.add(zone.toLowerCase(Locale.ROOT));
+                }
                 String[] etc = parseZones(etcInput, used, true);
                 if (etc == null) return;
 
-                Store.setZones(this, main, etc);
+                try {
+                    Store.setGrid(this, rows, cols, Store.DEFAULT_SEP, etc);
+                } catch (IllegalArgumentException e) {
+                    colInput.setError(e.getMessage());
+                    colInput.requestFocus();
+                    return;
+                }
                 rebuildZoneGrids();
                 render();
-                Toast.makeText(this, "주차 구역을 저장했어요", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "구역을 저장했어요", Toast.LENGTH_SHORT).show();
                 dlg.dismiss();
             });
             dlg.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener(v ->
@@ -682,12 +959,19 @@ public class MainActivity extends Activity {
             }
         }
         if (!emptyAllowed && zones.isEmpty()) {
-            input.setError("자주 쓰는 구역을 하나 이상 입력해 주세요");
+            input.setError("구역을 하나 이상 입력해 주세요");
             input.requestFocus();
             return null;
         }
         input.setError(null);
         return zones.toArray(new String[0]);
+    }
+
+    private boolean withinLimit(EditText input, int count, int max, String label) {
+        if (count <= max) return true;
+        input.setError(label + "은 " + max + "개까지 만들 수 있어요");
+        input.requestFocus();
+        return false;
     }
 
     private TextView settingText(String text, int sizeSp, int color) {
@@ -850,6 +1134,10 @@ public class MainActivity extends Activity {
         return Store.vehicleById(this, id) == null
                 ? "삭제된 차량: " + Store.recordVehicleName(this, record)
                 : Store.recordVehicleName(this, record);
+    }
+
+    private String btButtonText(String bt) {
+        return bt == null || bt.trim().isEmpty() ? "고르지 않음 · 수동 기록만" : bt;
     }
 
     private Button editorButton(String text) {
@@ -1105,25 +1393,10 @@ public class MainActivity extends Activity {
             btnTimer.setVisibility(View.VISIBLE);
         }
 
-        highlightIn(grid, currentZone, colorText);
-        highlightIn(etcGrid, currentZone, colorSubtext);
+        ZoneGrid.highlight(this, grid, currentZone, colorText);
+        ZoneGrid.highlight(this, etcGrid, currentZone, colorSubtext);
         renderHabits();
         renderHistory(h);
-    }
-
-    private void highlightIn(LinearLayout container, String currentZone, int defaultColor) {
-        for (int i = 0; i < container.getChildCount(); i++) {
-            LinearLayout row = (LinearLayout) container.getChildAt(i);
-            for (int j = 0; j < row.getChildCount(); j++) {
-                View child = row.getChildAt(j);
-                if (!(child instanceof Button)) continue; // 마지막 행 폭을 맞추는 빈칸
-                Button b = (Button) child;
-                boolean active = b.getTag().equals(currentZone);
-                b.setBackgroundResource(active
-                        ? R.drawable.bg_button_active : R.drawable.bg_button);
-                b.setTextColor(active ? colorOnAccent : defaultColor);
-            }
-        }
     }
 
     private void renderHabits() {

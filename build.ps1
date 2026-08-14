@@ -5,8 +5,8 @@
 $ErrorActionPreference = "Stop"
 
 # ---- config -----------------------------------------------------------
-$VersionCode = 11
-$VersionName = "2.5"
+$VersionCode = 13
+$VersionName = "3.1"
 $MinSdk      = 26
 $TargetSdk   = 35
 # -----------------------------------------------------------------------

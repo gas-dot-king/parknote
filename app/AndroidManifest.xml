@@ -10,6 +10,15 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- 재부팅 후 알람 재예약 -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- 차에서 내린 곳이 등록한 주차장인지 판정해 알림 세기를 조절한다 (기본 꺼짐).
+         좌표는 기기 안에서만 쓰고 어디로도 보내지 않는다. 블루투스 끊김은 브로드캐스트
+         수신이라 앱이 백그라운드로 취급돼 ACCESS_BACKGROUND_LOCATION이 필요하다.
+         Google Play에 올릴 때는 이 두 줄을 빼고 Nearby가 항상 unknown을 돌려주게 두면 된다. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+    <uses-feature
+        android:name="android.hardware.location"
+        android:required="false" />
     <!-- 블루투스가 없는 태블릿/Chromebook에서도 수동 기록은 사용할 수 있다. -->
     <uses-feature
         android:name="android.hardware.bluetooth"
@@ -29,6 +38,11 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- 첫 실행 안내. MainActivity가 온보딩 여부를 보고 직접 띄운다. -->
+        <activity
+            android:name=".OnboardingActivity"
+            android:exported="false" />
 
         <!-- 홈 화면 위젯 -->
         <receiver

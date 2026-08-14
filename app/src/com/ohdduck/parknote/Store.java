@@ -12,11 +12,13 @@ import org.json.JSONObject;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.UUID;
 
@@ -26,23 +28,36 @@ import java.util.UUID;
  */
 class Store {
 
-    static final String CAR_BT_NAME = "Ray";
     static final String LEGACY_PROFILE_ID = "legacy-default-profile";
     static final String LEGACY_VEHICLE_ID = "legacy-default-vehicle";
 
-    private static final int SCHEMA_VERSION = 4;
-    private static final int MAX_PROFILES = 12;
-    private static final int MAX_VEHICLES = 12;
+    private static final int SCHEMA_VERSION = 5;
+    static final int MAX_PROFILES = 6;
+    static final int MAX_VEHICLES = 3;
+    /** 격자 한 변의 상한. 칸이 너무 많으면 한 화면에서 고르는 이점이 사라진다. */
+    static final int MAX_ROWS = 8;
+    static final int MAX_COLS = 8;
+    /** 층 없이 쓰는 목록형은 격자가 아니므로 예전 상한(30개)을 그대로 허용한다. */
+    static final int MAX_FLAT_ZONES = 30;
+    static final String DEFAULT_SEP = "-";
 
-    private static final String[] DEFAULT_MAIN_ZONES =
-            {"B1-A", "B1-B", "B2-A", "B2-B", "B3-A", "B3-B"};
+    // 층(rows) × 구역(cols) 격자. rows가 비면 cols가 그대로 버튼이 되는 1차원 목록이다.
+    private static final String[] DEFAULT_ROWS = {"B1", "B2", "B3"};
+    private static final String[] DEFAULT_COLS = {"A", "B"};
     private static final String[] DEFAULT_ETC_ZONES =
             {"B4-A", "B4-B", "B5-A", "B5-B"};
+    /** 평면 목록을 격자로 역추론할 때 앞에서부터 시도하는 구분자 */
+    private static final String[] SEP_CANDIDATES = {"-", "_", " "};
 
     // v2.2 이하에서 쓰던 키. 마이그레이션 뒤에도 지우지 않아 복구 여지를 남긴다.
     private static final String PREF_MAIN_ZONES = "main_zones";
     private static final String PREF_ETC_ZONES = "etc_zones";
     private static final String PREF_CAR_BT = "car_bt";
+    private static final String PREF_ONBOARDED = "onboarded";
+    private static final String PREF_LOCATION_FILTER = "location_filter";
+
+    /** 프로필 좌표의 기본 반경(m). 지하 진입 직전 좌표를 쓰므로 넉넉하게 잡는다. */
+    static final int DEFAULT_RADIUS_M = 300;
 
     private static final String PREF_SCHEMA = "parking_schema";
     private static final String PREF_PROFILES = "parking_profiles_v1";
@@ -50,8 +65,11 @@ class Store {
     private static final String PREF_VEHICLES = "parking_vehicles_v1";
     private static final String PREF_ACTIVE_VEHICLE = "active_parking_vehicle_id";
     private static final String PREF_HISTORY = "history";
+    private static final String PREF_HABITS = "habits";
 
     static final String CHANNEL = "park_reminder";
+    /** 등록한 주차장이 아닐 때 쓰는 무음 채널. 알림함에는 남지만 방해하지 않는다. */
+    static final String CHANNEL_QUIET = "park_reminder_quiet";
     static final String CHANNEL_HABIT = "habit_reminder";
     static final String CHANNEL_TIMER = "parking_timer";
     static final int NOTIF_ID_BT = 1;
@@ -83,13 +101,33 @@ class Store {
             SharedPreferences p = prefs(c);
             if (p.getInt(PREF_SCHEMA, 0) >= SCHEMA_VERSION) return;
 
+            // 이미 쓰고 있던 기기는 온보딩을 다시 보여 주지 않는다. 저장된 흔적이
+            // 하나라도 있으면 업데이트 설치로 본다.
+            boolean freshInstall = p.getInt(PREF_SCHEMA, 0) == 0
+                    && p.getString(PREF_PROFILES, null) == null
+                    && p.getString(PREF_MAIN_ZONES, null) == null
+                    && p.getString(PREF_HISTORY, null) == null;
+
             try {
                 JSONArray profileList = safeArray(p.getString(PREF_PROFILES, null));
                 if (profileList == null || profileList.length() == 0) {
                     profileList = new JSONArray();
-                    profileList.put(newProfile(LEGACY_PROFILE_ID, "우리 집",
-                            readLegacyZones(p, PREF_MAIN_ZONES, DEFAULT_MAIN_ZONES, false),
-                            readLegacyZones(p, PREF_ETC_ZONES, DEFAULT_ETC_ZONES, true)));
+                    JSONObject fresh = newProfile(LEGACY_PROFILE_ID, "우리 집",
+                            DEFAULT_ROWS, DEFAULT_COLS, DEFAULT_SEP,
+                            readLegacyZones(p, PREF_ETC_ZONES, DEFAULT_ETC_ZONES, true));
+                    // v2.2의 평면 구역 목록이 남아 있으면 그걸 격자로 되돌린다.
+                    String[] legacyMain = readLegacyZones(p, PREF_MAIN_ZONES, null, false);
+                    if (legacyMain != null && legacyMain.length > 0) applyFlatZones(fresh, legacyMain);
+                    profileList.put(fresh);
+                }
+                // v4 이하 프로필의 평면 main 목록을 격자로 역추론한다.
+                for (int i = 0; i < profileList.length(); i++) {
+                    JSONObject profile = profileList.optJSONObject(i);
+                    if (profile != null && !profile.has("cols")) {
+                        String[] flat = jsonToArray(profile.optJSONArray("main"));
+                        applyFlatZones(profile,
+                                flat.length > 0 ? flat : flatten(DEFAULT_ROWS, DEFAULT_COLS, DEFAULT_SEP));
+                    }
                 }
                 JSONObject firstProfile = profileList.optJSONObject(0);
                 String firstProfileId = firstProfile == null
@@ -99,10 +137,12 @@ class Store {
 
                 JSONArray vehicleList = safeArray(p.getString(PREF_VEHICLES, null));
                 if (vehicleList == null || vehicleList.length() == 0) {
+                    // 새로 설치한 경우 블루투스 이름을 비워 둔다. 온보딩에서 실제 페어링된
+                    // 기기를 고르게 하므로, 남의 차 이름을 기본값으로 심어 두지 않는다.
                     String legacyBt = clean(p.getString(PREF_CAR_BT, ""));
-                    if (legacyBt.isEmpty()) legacyBt = CAR_BT_NAME;
                     vehicleList = new JSONArray();
-                    vehicleList.put(newVehicle(LEGACY_VEHICLE_ID, legacyBt, legacyBt));
+                    vehicleList.put(newVehicle(LEGACY_VEHICLE_ID,
+                            legacyBt.isEmpty() ? "내 차" : legacyBt, legacyBt));
                 }
                 JSONObject firstVehicle = vehicleList.optJSONObject(0);
                 String firstVehicleId = firstVehicle == null
@@ -145,6 +185,7 @@ class Store {
                         .putString(PREF_VEHICLES, vehicleList.toString())
                         .putString(PREF_ACTIVE_VEHICLE, activeVehicle)
                         .putString(PREF_HISTORY, normalized.toString())
+                        .putBoolean(PREF_ONBOARDED, !freshInstall)
                         .putInt(PREF_SCHEMA, SCHEMA_VERSION)
                         .apply();
                 NotificationManager nm =
@@ -169,26 +210,109 @@ class Store {
         return new JSONObject(source.toString());
     }
 
+    /** defaults가 null이면 저장된 값이 없을 때 null을 돌려준다. */
     private static String[] readLegacyZones(SharedPreferences p, String key,
                                             String[] defaults, boolean emptyAllowed) {
         JSONArray a = safeArray(p.getString(key, null));
-        if (a == null) return defaults.clone();
+        if (a == null) return defaults == null ? null : defaults.clone();
         ArrayList<String> out = new ArrayList<>();
         for (int i = 0; i < a.length(); i++) {
             String zone = clean(a.optString(i, ""));
             if (!zone.isEmpty()) out.add(zone);
         }
         if (!out.isEmpty() || emptyAllowed) return out.toArray(new String[0]);
-        return defaults.clone();
+        return defaults == null ? null : defaults.clone();
     }
 
-    private static JSONObject newProfile(String id, String name, String[] main, String[] etc)
-            throws JSONException {
+    private static JSONObject newProfile(String id, String name, String[] rows, String[] cols,
+                                         String sep, String[] etc) throws JSONException {
         JSONObject out = new JSONObject();
         out.put("id", id);
         out.put("n", name);
-        out.put("main", zonesJson(main));
+        out.put("rows", zonesJson(rows));
+        out.put("cols", zonesJson(cols));
+        out.put("sep", sep);
         out.put("etc", zonesJson(etc));
+        return out;
+    }
+
+    // ---------- 격자 (층 × 구역) ----------
+
+    /** 격자를 실제 저장되는 구역 이름 배열로 편다. 행이 없으면 열이 곧 구역이다. */
+    static String[] flatten(String[] rows, String[] cols, String sep) {
+        if (cols == null || cols.length == 0) return new String[0];
+        if (rows == null || rows.length == 0) return cols.clone();
+        String[] out = new String[rows.length * cols.length];
+        int i = 0;
+        for (String row : rows) {
+            for (String col : cols) out[i++] = row + sep + col;
+        }
+        return out;
+    }
+
+    /**
+     * 평면 구역 목록이 "행 + 구분자 + 열"의 완전한 곱집합이고 행 우선 순서면 격자로 되돌린다.
+     * 하나라도 어긋나면 null을 반환해 사용자가 쓰던 목록을 그대로 1차원으로 보존하게 한다.
+     */
+    private static String[][] inferGrid(String[] zones, String sep) {
+        if (zones.length < 4) return null; // 2×2 미만은 굳이 격자로 볼 이득이 없다
+        ArrayList<String> rows = new ArrayList<>();
+        ArrayList<String> cols = new ArrayList<>();
+        for (String zone : zones) {
+            int at = zone.indexOf(sep);
+            if (at <= 0 || at + sep.length() >= zone.length()) return null;
+            String row = zone.substring(0, at);
+            String col = zone.substring(at + sep.length());
+            if (col.contains(sep)) return null; // 구분자가 두 번 이상
+            if (!rows.contains(row)) rows.add(row);
+            if (!cols.contains(col)) cols.add(col);
+        }
+        if (rows.size() * cols.size() != zones.length) return null;
+        int i = 0;
+        for (String row : rows) {
+            for (String col : cols) {
+                if (!zones[i++].equals(row + sep + col)) return null;
+            }
+        }
+        return new String[][]{rows.toArray(new String[0]), cols.toArray(new String[0])};
+    }
+
+    /** 평면 목록을 프로필의 격자 필드로 옮긴다. 격자로 안 떨어지면 행 없는 1차원으로 둔다. */
+    private static void applyFlatZones(JSONObject profile, String[] zones) throws JSONException {
+        for (String sep : SEP_CANDIDATES) {
+            String[][] grid = inferGrid(zones, sep);
+            if (grid == null) continue;
+            profile.put("rows", zonesJson(grid[0]));
+            profile.put("cols", zonesJson(grid[1]));
+            profile.put("sep", sep);
+            return;
+        }
+        profile.put("rows", new JSONArray());
+        profile.put("cols", zonesJson(zones));
+        profile.put("sep", DEFAULT_SEP);
+    }
+
+    private static String[] jsonToArray(JSONArray a) {
+        if (a == null) return new String[0];
+        ArrayList<String> out = new ArrayList<>();
+        for (int i = 0; i < a.length(); i++) {
+            String value = clean(a.optString(i, ""));
+            if (!value.isEmpty()) out.add(value);
+        }
+        return out.toArray(new String[0]);
+    }
+
+    /** 지하 n개층 라벨 (B1 ~ Bn) */
+    static String[] basementRows(int count) {
+        String[] out = new String[Math.max(0, count)];
+        for (int i = 0; i < out.length; i++) out[i] = "B" + (i + 1);
+        return out;
+    }
+
+    /** 구역 n개 라벨 (A, B, C …) */
+    static String[] columnLabels(int count) {
+        String[] out = new String[Math.max(0, count)];
+        for (int i = 0; i < out.length; i++) out[i] = String.valueOf((char) ('A' + i));
         return out;
     }
 
@@ -209,18 +333,24 @@ class Store {
         return out;
     }
 
+    /** 기타 구역처럼 격자 밖에 있는 평면 목록을 읽는다. */
     private static String[] zonesOf(JSONObject profile, String key,
                                     String[] defaults, boolean emptyAllowed) {
         if (profile == null) return defaults.clone();
         JSONArray a = profile.optJSONArray(key);
         if (a == null) return defaults.clone();
-        ArrayList<String> out = new ArrayList<>();
-        for (int i = 0; i < a.length(); i++) {
-            String zone = clean(a.optString(i, ""));
-            if (!zone.isEmpty()) out.add(zone);
-        }
-        if (!out.isEmpty() || emptyAllowed) return out.toArray(new String[0]);
+        String[] out = jsonToArray(a);
+        if (out.length > 0 || emptyAllowed) return out;
         return defaults.clone();
+    }
+
+    /** 프로필의 격자를 편 구역 이름 배열. 위젯·알림·화면이 모두 이 결과를 쓴다. */
+    private static String[] gridZones(JSONObject profile) {
+        if (profile == null) return flatten(DEFAULT_ROWS, DEFAULT_COLS, DEFAULT_SEP);
+        String[] cols = jsonToArray(profile.optJSONArray("cols"));
+        if (cols.length == 0) return flatten(DEFAULT_ROWS, DEFAULT_COLS, DEFAULT_SEP);
+        return flatten(jsonToArray(profile.optJSONArray("rows")), cols,
+                profile.optString("sep", DEFAULT_SEP));
     }
 
     private static JSONObject findById(JSONArray items, String id) {
@@ -293,7 +423,9 @@ class Store {
         String id = UUID.randomUUID().toString();
         try {
             ps.put(newProfile(id, n,
-                    zonesOf(current, "main", DEFAULT_MAIN_ZONES, false),
+                    current == null ? DEFAULT_ROWS : jsonToArray(current.optJSONArray("rows")),
+                    current == null ? DEFAULT_COLS : jsonToArray(current.optJSONArray("cols")),
+                    current == null ? DEFAULT_SEP : current.optString("sep", DEFAULT_SEP),
                     zonesOf(current, "etc", DEFAULT_ETC_ZONES, true)));
         } catch (JSONException e) {
             throw new RuntimeException(e);
@@ -355,7 +487,7 @@ class Store {
     }
 
     static String[] mainZones(Context c) {
-        return zonesOf(activeProfile(c), "main", DEFAULT_MAIN_ZONES, false);
+        return gridZones(activeProfile(c));
     }
 
     static String[] etcZones(Context c) {
@@ -363,18 +495,54 @@ class Store {
     }
 
     static String[] mainZonesForProfile(Context c, String profileId) {
-        return zonesOf(profileById(c, profileId), "main", DEFAULT_MAIN_ZONES, false);
+        return gridZones(profileById(c, profileId));
     }
 
-    static void setZones(Context c, String[] main, String[] etc) {
-        if (main == null || main.length == 0) {
-            throw new IllegalArgumentException("main zones must not be empty");
+    /** 현재 주차장의 층 목록. 비어 있으면 1차원(층 없이 구역 버튼만) 구성이다. */
+    static String[] activeRows(Context c) {
+        JSONObject profile = activeProfile(c);
+        return profile == null ? DEFAULT_ROWS.clone() : jsonToArray(profile.optJSONArray("rows"));
+    }
+
+    static String[] activeCols(Context c) {
+        JSONObject profile = activeProfile(c);
+        if (profile == null) return DEFAULT_COLS.clone();
+        String[] cols = jsonToArray(profile.optJSONArray("cols"));
+        return cols.length == 0 ? DEFAULT_COLS.clone() : cols;
+    }
+
+    static String activeSep(Context c) {
+        JSONObject profile = activeProfile(c);
+        return profile == null ? DEFAULT_SEP : profile.optString("sep", DEFAULT_SEP);
+    }
+
+    /**
+     * 구역 개수 상한. 층이 있으면 격자의 한 변이라 8개, 층이 없으면 그냥 버튼 목록이라
+     * v2.5까지 쓰던 30개를 그대로 허용한다. 그러지 않으면 예전에 구역을 10개 넘게
+     * 만들어 둔 사용자가 구역 편집을 저장조차 할 수 없게 된다.
+     */
+    static int colLimit(String[] rows) {
+        return rows != null && rows.length > 0 ? MAX_COLS : MAX_FLAT_ZONES;
+    }
+
+    static void setGrid(Context c, String[] rows, String[] cols, String sep, String[] etc) {
+        if (cols == null || cols.length == 0) {
+            throw new IllegalArgumentException("구역을 하나 이상 남겨 주세요");
+        }
+        if (rows != null && rows.length > MAX_ROWS) {
+            throw new IllegalArgumentException("층은 " + MAX_ROWS + "개까지 만들 수 있어요");
+        }
+        int colLimit = colLimit(rows);
+        if (cols.length > colLimit) {
+            throw new IllegalArgumentException("구역은 " + colLimit + "개까지 만들 수 있어요");
         }
         JSONArray ps = profiles(c);
         JSONObject profile = findById(ps, activeProfileId(c));
         if (profile == null) return;
         try {
-            profile.put("main", zonesJson(main));
+            profile.put("rows", zonesJson(rows == null ? new String[0] : rows));
+            profile.put("cols", zonesJson(cols));
+            profile.put("sep", clean(sep).isEmpty() ? DEFAULT_SEP : sep);
             profile.put("etc", zonesJson(etc == null ? new String[0] : etc));
         } catch (JSONException e) {
             throw new RuntimeException(e);
@@ -384,7 +552,226 @@ class Store {
     }
 
     static void resetZones(Context c) {
-        setZones(c, DEFAULT_MAIN_ZONES, DEFAULT_ETC_ZONES);
+        setGrid(c, DEFAULT_ROWS, DEFAULT_COLS, DEFAULT_SEP, DEFAULT_ETC_ZONES);
+    }
+
+    // ---------- 위치로 알림 조절 ----------
+    // 프로필에 좌표를 심어 두면 차에서 내린 곳이 어느 주차장인지 알 수 있다.
+    // 기능 전체가 이 스위치 하나에 걸려 있어, 꺼 두면 위치를 아예 읽지 않는다.
+
+    static boolean locationFilterOn(Context c) {
+        ensureSchema(c);
+        return prefs(c).getBoolean(PREF_LOCATION_FILTER, false);
+    }
+
+    static void setLocationFilter(Context c, boolean on) {
+        ensureSchema(c);
+        prefs(c).edit().putBoolean(PREF_LOCATION_FILTER, on).apply();
+    }
+
+    static boolean hasCoords(JSONObject profile) {
+        return profile != null && profile.has("lat") && profile.has("lon");
+    }
+
+    /** 좌표가 하나라도 등록돼 있는지. 하나도 없으면 위치를 읽어 봐야 소용이 없다. */
+    static boolean anyProfileHasCoords(Context c) {
+        JSONArray ps = profiles(c);
+        for (int i = 0; i < ps.length(); i++) {
+            if (hasCoords(ps.optJSONObject(i))) return true;
+        }
+        return false;
+    }
+
+    static void setProfileCoords(Context c, String profileId, double lat, double lon, int radiusM) {
+        JSONArray ps = profiles(c);
+        JSONObject profile = findById(ps, profileId);
+        if (profile == null) return;
+        try {
+            profile.put("lat", lat);
+            profile.put("lon", lon);
+            profile.put("rad", radiusM > 0 ? radiusM : DEFAULT_RADIUS_M);
+        } catch (JSONException e) {
+            throw new RuntimeException(e);
+        }
+        prefs(c).edit().putString(PREF_PROFILES, ps.toString()).apply();
+    }
+
+    static void clearProfileCoords(Context c, String profileId) {
+        JSONArray ps = profiles(c);
+        JSONObject profile = findById(ps, profileId);
+        if (profile == null) return;
+        profile.remove("lat");
+        profile.remove("lon");
+        profile.remove("rad");
+        prefs(c).edit().putString(PREF_PROFILES, ps.toString()).apply();
+    }
+
+    static int profileRadius(JSONObject profile) {
+        int radius = profile == null ? 0 : profile.optInt("rad", DEFAULT_RADIUS_M);
+        return radius > 0 ? radius : DEFAULT_RADIUS_M;
+    }
+
+    /** 주어진 좌표의 반경 안에 드는 프로필 중 가장 가까운 것. 없으면 null. */
+    static JSONObject profileNear(Context c, double lat, double lon) {
+        JSONArray ps = profiles(c);
+        JSONObject best = null;
+        double bestDistance = Double.MAX_VALUE;
+        for (int i = 0; i < ps.length(); i++) {
+            JSONObject profile = ps.optJSONObject(i);
+            if (!hasCoords(profile)) continue;
+            double distance = metersBetween(lat, lon, profile.optDouble("lat"), profile.optDouble("lon"));
+            if (distance <= profileRadius(profile) && distance < bestDistance) {
+                bestDistance = distance;
+                best = profile;
+            }
+        }
+        return best;
+    }
+
+    /** 하버사인 거리(m). 수 km 범위에서 반경 판정에 충분하다. */
+    static double metersBetween(double lat1, double lon1, double lat2, double lon2) {
+        double dLat = Math.toRadians(lat2 - lat1);
+        double dLon = Math.toRadians(lon2 - lon1);
+        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
+                + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
+                * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        return 6371000.0 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+
+    // ---------- 백업 ----------
+
+    /**
+     * 저장된 값을 키 그대로 담아 낸다. 가공하지 않으므로 예전 버전에서 만든 백업을
+     * 되돌려도 복원 뒤 평소의 마이그레이션 경로를 그대로 다시 탄다.
+     */
+    static JSONObject exportData(Context c) {
+        ensureSchema(c);
+        SharedPreferences p = prefs(c);
+        JSONObject out = new JSONObject();
+        try {
+            out.put(PREF_SCHEMA, p.getInt(PREF_SCHEMA, SCHEMA_VERSION));
+            out.put(PREF_PROFILES, p.getString(PREF_PROFILES, "[]"));
+            out.put(PREF_ACTIVE_PROFILE, p.getString(PREF_ACTIVE_PROFILE, ""));
+            out.put(PREF_VEHICLES, p.getString(PREF_VEHICLES, "[]"));
+            out.put(PREF_ACTIVE_VEHICLE, p.getString(PREF_ACTIVE_VEHICLE, ""));
+            out.put(PREF_HISTORY, p.getString(PREF_HISTORY, "[]"));
+            out.put(PREF_HABITS, p.getString(PREF_HABITS, "[]"));
+            out.put(PREF_ONBOARDED, p.getBoolean(PREF_ONBOARDED, true));
+        } catch (JSONException e) {
+            throw new RuntimeException(e);
+        }
+        return out;
+    }
+
+    /**
+     * 백업으로 통째로 교체한다. 지금 걸려 있는 알람은 먼저 거둔다 —
+     * 교체 뒤에는 어떤 기록에 붙어 있던 알람인지 알 수 없기 때문.
+     */
+    static void importData(Context c, JSONObject data) {
+        ensureSchema(c);
+        cancelAllScheduled(c);
+
+        prefs(c).edit()
+                .putInt(PREF_SCHEMA, data.optInt(PREF_SCHEMA, SCHEMA_VERSION))
+                .putString(PREF_PROFILES, data.optString(PREF_PROFILES, "[]"))
+                .putString(PREF_ACTIVE_PROFILE, data.optString(PREF_ACTIVE_PROFILE, ""))
+                .putString(PREF_VEHICLES, data.optString(PREF_VEHICLES, "[]"))
+                .putString(PREF_ACTIVE_VEHICLE, data.optString(PREF_ACTIVE_VEHICLE, ""))
+                .putString(PREF_HISTORY, data.optString(PREF_HISTORY, "[]"))
+                .putString(PREF_HABITS, data.optString(PREF_HABITS, "[]"))
+                .putBoolean(PREF_ONBOARDED, data.optBoolean(PREF_ONBOARDED, true))
+                .apply();
+
+        ensureSchema(c); // 예전 스키마의 백업이면 여기서 최신 구조로 올라온다
+        ParkingTimers.scheduleAll(c);
+        Reminders.scheduleAll(c);
+        notifyParkingHistoryChanged(c);
+    }
+
+    private static void cancelAllScheduled(Context c) {
+        JSONArray h = history(c);
+        for (int i = 0; i < h.length(); i++) {
+            JSONObject entry = h.optJSONObject(i);
+            if (entry != null && entry.optLong("due", 0) > 0) {
+                ParkingTimers.cancel(c, entry.optString("id"));
+            }
+        }
+        JSONArray hs = habits(c);
+        for (int i = 0; i < hs.length(); i++) {
+            JSONObject habit = hs.optJSONObject(i);
+            if (habit != null) Reminders.cancel(c, habit.optString("n"));
+        }
+        JSONArray vs = vehicles(c);
+        for (int i = 0; i < vs.length(); i++) {
+            JSONObject vehicle = vs.optJSONObject(i);
+            if (vehicle != null) cancelBtPrompt(c, vehicle.optString("id"));
+        }
+    }
+
+    /** 백업 요약 (복원 전 확인 문구용). */
+    static String describe(JSONObject data) {
+        JSONArray profiles = safeArray(data.optString(PREF_PROFILES, "[]"));
+        JSONArray vehicles = safeArray(data.optString(PREF_VEHICLES, "[]"));
+        JSONArray history = safeArray(data.optString(PREF_HISTORY, "[]"));
+        JSONArray habits = safeArray(data.optString(PREF_HABITS, "[]"));
+        return "주차장 " + (profiles == null ? 0 : profiles.length()) + "개 · "
+                + "차량 " + (vehicles == null ? 0 : vehicles.length()) + "대 · "
+                + "주차 기록 " + (history == null ? 0 : history.length()) + "개 · "
+                + "체크 " + (habits == null ? 0 : habits.length()) + "개";
+    }
+
+    /** 복원해도 앱이 멀쩡한 데이터인지 확인한다. 문제가 없으면 null. */
+    static String validate(JSONObject data) {
+        JSONArray profiles = safeArray(data.optString(PREF_PROFILES, ""));
+        if (profiles == null || profiles.length() == 0) {
+            return "주차장 정보가 없는 파일이에요";
+        }
+        JSONArray vehicles = safeArray(data.optString(PREF_VEHICLES, ""));
+        if (vehicles == null || vehicles.length() == 0) {
+            return "차량 정보가 없는 파일이에요";
+        }
+        if (safeArray(data.optString(PREF_HISTORY, "[]")) == null) {
+            return "주차 기록이 손상된 파일이에요";
+        }
+        if (safeArray(data.optString(PREF_HABITS, "[]")) == null) {
+            return "체크 기록이 손상된 파일이에요";
+        }
+        return null;
+    }
+
+    // ---------- 첫 실행 온보딩 ----------
+
+    static boolean isOnboarded(Context c) {
+        ensureSchema(c);
+        return prefs(c).getBoolean(PREF_ONBOARDED, false);
+    }
+
+    /** 온보딩에서 만든 첫 주차장·차량으로 기본값을 덮어쓴다. */
+    static void completeOnboarding(Context c, String profileName, String[] rows, String[] cols,
+                                   String sep, String vehicleName, String btName) {
+        ensureSchema(c);
+        String name = clean(profileName);
+        if (!name.isEmpty()) {
+            try {
+                renameProfile(c, activeProfileId(c), name);
+            } catch (IllegalArgumentException ignored) {
+                // 같은 이름이 이미 있으면 기존 이름을 그대로 둔다.
+            }
+        }
+        setGrid(c, rows, cols, sep, etcZones(c));
+        JSONObject vehicle = activeVehicle(c);
+        if (vehicle != null) {
+            String vn = clean(vehicleName);
+            updateVehicle(c, vehicle.optString("id"),
+                    vn.isEmpty() ? vehicle.optString("n", "내 차") : vn, clean(btName));
+        }
+        prefs(c).edit().putBoolean(PREF_ONBOARDED, true).apply();
+    }
+
+    /** 온보딩을 건너뛰어도 다시 묻지 않는다. */
+    static void skipOnboarding(Context c) {
+        ensureSchema(c);
+        prefs(c).edit().putBoolean(PREF_ONBOARDED, true).apply();
     }
 
     private static boolean nameTaken(JSONArray items, String name, String exceptId) {
@@ -537,21 +924,6 @@ class Store {
             if (!bt.isEmpty() && bt.equalsIgnoreCase(target)) return vehicle;
         }
         return null;
-    }
-
-    /** 이전 단일 차량 API 호환용. 현재 선택 차량의 블루투스 이름을 반환한다. */
-    static String carBtName(Context c) {
-        String bt = vehicleBtName(c, activeVehicleId(c));
-        return bt.isEmpty() ? CAR_BT_NAME : bt;
-    }
-
-    static void setCarBtName(Context c, String name) {
-        String bt = clean(name);
-        JSONObject vehicle = activeVehicle(c);
-        if (vehicle != null) {
-            updateVehicle(c, vehicle.optString("id"), vehicle.optString("n", "내 차"), bt);
-        }
-        prefs(c).edit().putString(PREF_CAR_BT, bt).apply();
     }
 
     private static boolean bluetoothNameTaken(JSONArray vehicles, String bt, String exceptId) {
@@ -811,6 +1183,35 @@ class Store {
         return recentZones(c, activeProfileId(c), activeVehicleId(c), max);
     }
 
+    /**
+     * 홈 위젯에 올릴 구역. 격자가 버튼 수보다 크면 최근에 쓴 구역을 골라 담되,
+     * <b>배치는 격자 순서를 그대로 지킨다</b>. 최근순으로 늘어놓으면 주차할 때마다
+     * 버튼이 자리를 바꿔서 손에 익지 않는다.
+     */
+    static String[] widgetZones(Context c, String profileId, String vehicleId, int max) {
+        String[] grid = mainZonesForProfile(c, profileId);
+        if (grid.length <= max) return grid;
+
+        HashSet<String> inGrid = new HashSet<>(Arrays.asList(grid));
+        LinkedHashSet<String> keep = new LinkedHashSet<>();
+        JSONArray h = historyForContext(c, profileId, vehicleId);
+        for (int i = 0; i < h.length() && keep.size() < max; i++) {
+            JSONObject entry = h.optJSONObject(i);
+            String zone = entry == null ? "" : clean(entry.optString("z", ""));
+            // 직접 입력한 일회성 위치(예: 롯데몰)는 위젯 자리를 차지하지 않게 거른다.
+            if (!zone.isEmpty() && inGrid.contains(zone)) keep.add(zone);
+        }
+        for (String zone : grid) {
+            if (keep.size() >= max) break;
+            keep.add(zone);
+        }
+        ArrayList<String> out = new ArrayList<>();
+        for (String zone : grid) {
+            if (keep.contains(zone)) out.add(zone);
+        }
+        return out.toArray(new String[0]);
+    }
+
     private static JSONArray sortHistory(JSONArray source) {
         ArrayList<JSONObject> entries = new ArrayList<>();
         for (int i = 0; i < source.length(); i++) {
@@ -852,14 +1253,14 @@ class Store {
 
     static JSONArray habits(Context c) {
         try {
-            return new JSONArray(prefs(c).getString("habits", "[]"));
+            return new JSONArray(prefs(c).getString(PREF_HABITS, "[]"));
         } catch (JSONException e) {
             return new JSONArray();
         }
     }
 
     private static void saveHabits(Context c, JSONArray hs) {
-        prefs(c).edit().putString("habits", hs.toString()).apply();
+        prefs(c).edit().putString(PREF_HABITS, hs.toString()).apply();
     }
 
     static void addHabit(Context c, String name) {

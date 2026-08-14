@@ -56,8 +56,19 @@ public class BtReceiver extends BroadcastReceiver {
         nm.createNotificationChannel(new NotificationChannel(
                 Store.CHANNEL, brand + " · 위치 기록", NotificationManager.IMPORTANCE_HIGH));
 
+        // 위치를 알면 그 주차장 기준으로 묻고, 모르는 곳이면 조용한 채널로 내린다.
+        // 판정에 실패했을 때는 평소대로 알린다 — 놓치는 쪽이 훨씬 손해다.
+        Nearby.Where where = Nearby.locate(ctx);
         String profileId = Store.activeProfileId(ctx);
-        String profileName = Store.activeProfileName(ctx);
+        if (where.profile != null) profileId = where.profile.optString("id", profileId);
+
+        String channel = Store.CHANNEL;
+        if (!where.shouldAlert()) {
+            channel = Store.CHANNEL_QUIET;
+            nm.createNotificationChannel(new NotificationChannel(
+                    channel, brand + " · 조용한 위치 기록", NotificationManager.IMPORTANCE_LOW));
+        }
+        String profileName = Store.profileName(ctx, profileId);
         Intent openIntent = new Intent(ctx, MainActivity.class)
                 .setData(Uri.fromParts("parknote", "bt/" + vehicleId, null))
                 .putExtra(ParkWidgetProvider.EXTRA_PROFILE_ID, profileId)
@@ -66,10 +77,12 @@ public class BtReceiver extends BroadcastReceiver {
                 ctx, 0, openIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
-        Notification.Builder nb = new Notification.Builder(ctx, Store.CHANNEL)
+        Notification.Builder nb = new Notification.Builder(ctx, channel)
                 .setSmallIcon(R.drawable.ic_notif)
                 .setContentTitle(brand + " · " + car)
-                .setContentText(profileName + "에 댄 곳을 남겨둘까요?")
+                .setContentText(where.shouldAlert()
+                        ? profileName + "에 댄 곳을 남겨둘까요?"
+                        : "등록한 주차장이 아니에요. 남겨둘까요?")
                 .setContentIntent(open)
                 .setAutoCancel(true);
 

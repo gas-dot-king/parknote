@@ -71,7 +71,9 @@ public class ParkWidgetProvider extends AppWidgetProvider {
                         + " · " + Store.activeProfileName(ctx)
                         + " · " + Store.activeVehicleName(ctx));
 
-        String[] zones = Store.mainZones(ctx);
+        // 격자가 크면 앞 6칸이 전부 첫 번째 층이라, 늘 B2에 대는 사람은 위젯에서
+        // 자기 자리를 영영 못 누른다. 최근에 쓴 구역으로 골라 담는다.
+        String[] zones = Store.widgetZones(ctx, profileId, vehicleId, BTN_IDS.length);
         for (int row = 0; row < ROW_IDS.length; row++) {
             rv.setViewVisibility(ROW_IDS[row], row * 2 < zones.length
                     ? View.VISIBLE : View.GONE);
