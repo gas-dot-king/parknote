@@ -69,14 +69,42 @@ class Nearby {
     }
 
     /**
+     * 위치 권한을 요청할 때 반드시 함께 넣어야 하는 조합.
+     *
+     * <p>Android 12부터 FINE을 단독으로 요청하면 시스템이 다이얼로그조차 띄우지 않고
+     * 요청을 무시한다. 사용자에게는 "거부됨"으로만 돌아와서 원인을 알 수 없다.
+     */
+    static final String[] FOREGROUND_PERMISSIONS = {
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.ACCESS_COARSE_LOCATION};
+
+    /**
+     * FINE이든 COARSE든 하나라도 허용됐는가.
+     *
+     * <p>판정 반경이 {@value Store#DEFAULT_RADIUS_M}m라 COARSE(대략 100~2000m 오차)로도
+     * 충분히 쓸 만하다. Android 12의 권한 다이얼로그에서 사용자가 "대략적인 위치"를
+     * 고르면 FINE은 거부로 떨어지는데, 그걸 실패로 처리하면 멀쩡히 쓸 수 있는 기능이
+     * 이유 없이 막힌다.
+     */
+    static boolean hasAnyLocationPermission(Context c) {
+        return c.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)
+                        == PackageManager.PERMISSION_GRANTED
+                || c.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION)
+                        == PackageManager.PERMISSION_GRANTED;
+    }
+
+    /** 정밀 위치까지 허용됐는가. 새 측위를 요청할 때 GPS를 쓸 수 있는지 판단에만 쓴다. */
+    private static boolean hasFinePermission(Context c) {
+        return c.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)
+                == PackageManager.PERMISSION_GRANTED;
+    }
+
+    /**
      * 백그라운드에서 위치를 읽으려면 Android 10부터 "항상 허용"이 필요하다.
      * 블루투스 끊김은 브로드캐스트 수신이라 앱이 백그라운드 상태로 취급된다.
      */
     static boolean hasPermission(Context c) {
-        if (c.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)
-                != PackageManager.PERMISSION_GRANTED) {
-            return false;
-        }
+        if (!hasAnyLocationPermission(c)) return false;
         return Build.VERSION.SDK_INT < 29
                 || c.checkSelfPermission(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
                         == PackageManager.PERMISSION_GRANTED;
@@ -84,8 +112,25 @@ class Nearby {
 
     /** 앱 화면에서 좌표를 저장할 때는 "앱 사용 중" 권한만 있으면 된다. */
     static boolean hasForegroundPermission(Context c) {
-        return c.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)
-                == PackageManager.PERMISSION_GRANTED;
+        return hasAnyLocationPermission(c);
+    }
+
+    /**
+     * 권한 요청 결과에 위치 권한이 하나라도 허용됐는지 본다.
+     *
+     * <p>{@code results[0]}만 보면 안 된다. FINE+COARSE를 함께 요청했을 때 사용자가
+     * "대략적인 위치"를 고르면 배열 0번(FINE)은 거부, 1번(COARSE)만 허용으로 온다.
+     */
+    static boolean anyLocationGranted(String[] permissions, int[] results) {
+        for (int i = 0; i < permissions.length && i < results.length; i++) {
+            if (results[i] != PackageManager.PERMISSION_GRANTED) continue;
+            if (Manifest.permission.ACCESS_FINE_LOCATION.equals(permissions[i])
+                    || Manifest.permission.ACCESS_COARSE_LOCATION.equals(permissions[i])
+                    || Manifest.permission.ACCESS_BACKGROUND_LOCATION.equals(permissions[i])) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -95,17 +140,25 @@ class Nearby {
     static Location lastFix(Context c) {
         LocationManager lm = (LocationManager) c.getSystemService(Context.LOCATION_SERVICE);
         if (lm == null) return null;
-        Location best = null;
+        List<String> providers;
         try {
-            List<String> providers = lm.getProviders(true);
-            if (providers == null) return null;
-            for (String provider : providers) {
+            providers = lm.getProviders(true);
+        } catch (SecurityException ignored) {
+            return null;
+        }
+        if (providers == null) return null;
+        Location best = null;
+        for (String provider : providers) {
+            // 공급자별로 따로 감싼다. COARSE만 허용된 상태에서 GPS를 물으면
+            // SecurityException이 나는데, 바깥에서 한 번에 잡으면 그 뒤의
+            // NETWORK 좌표까지 통째로 버리게 된다.
+            try {
                 Location candidate = lm.getLastKnownLocation(provider);
                 if (candidate == null) continue;
                 if (best == null || candidate.getTime() > best.getTime()) best = candidate;
+            } catch (SecurityException | IllegalArgumentException ignored) {
+                // 이 공급자만 건너뛴다
             }
-        } catch (SecurityException ignored) {
-            return null;
         }
         if (best == null) return null;
         long age = System.currentTimeMillis() - best.getTime();
@@ -132,10 +185,12 @@ class Nearby {
             cb.onFix(null);
             return;
         }
+        // COARSE만 허용됐으면 GPS를 요청할 수 없다. 그대로 요청하면 SecurityException이
+        // 나면서 "위치를 잡지 못했어요"로 끝나 버리므로, 처음부터 NETWORK만 본다.
         String provider = null;
-        if (lm.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
+        if (hasFinePermission(c) && isEnabled(lm, LocationManager.GPS_PROVIDER)) {
             provider = LocationManager.GPS_PROVIDER;
-        } else if (lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
+        } else if (isEnabled(lm, LocationManager.NETWORK_PROVIDER)) {
             provider = LocationManager.NETWORK_PROVIDER;
         }
         if (provider == null) {
@@ -172,6 +227,15 @@ class Nearby {
         }, 15000L);
     }
 
+    /** 공급자 조회는 기기에 따라 IllegalArgumentException을 던진다. */
+    private static boolean isEnabled(LocationManager lm, String provider) {
+        try {
+            return lm.isProviderEnabled(provider);
+        } catch (SecurityException | IllegalArgumentException ignored) {
+            return false;
+        }
+    }
+
     private static void stop(LocationManager lm, LocationListener listener) {
         try {
             lm.removeUpdates(listener);
@@ -181,11 +245,13 @@ class Nearby {
     }
 
     /** 좌표를 저장할 때 쓸 설명 문구. */
-    static String describeAccuracy(Location fix) {
+    static String describeAccuracy(Context c, Location fix) {
         if (fix == null) return "";
         int meters = Math.round(fix.getAccuracy());
         long minutes = (System.currentTimeMillis() - fix.getTime()) / 60000L;
-        String freshness = minutes < 1 ? "방금" : minutes + "분 전";
-        return freshness + " 측정 · 오차 약 " + meters + "m";
+        String freshness = minutes < 1
+                ? c.getString(R.string.location_just_now)
+                : c.getString(R.string.location_minutes_ago, minutes);
+        return c.getString(R.string.location_accuracy, freshness, meters);
     }
 }

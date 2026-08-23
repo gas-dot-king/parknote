@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 12+의 백업/이전 정책. allowBackup="false"가 클라우드 백업을 막고,
+  이 파일은 "기기 이전(D2D)만 허용"을 명시적으로 남긴다.
+
+  구글 드라이브로 올리지 않는 이유: 저장 데이터에 집·회사 주차장 좌표가 들어 있다.
+  기기 이전은 사용자가 새 폰으로 옮기는 순간 본인 기기끼리만 일어나므로 허용한다.
+
+  이걸로도 못 구하는 경우(서명 키 변경, 다른 OS로 이동, 앱 삭제 후 재설치)가 있어서
+  설정의 수동 JSON 백업은 그대로 유지한다. 그쪽이 여전히 유일한 확실한 수단이다.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" />
+        <exclude domain="file" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="external" />
+    </cloud-backup>
+
+    <device-transfer>
+        <include domain="sharedpref" path="parknote.xml" />
+    </device-transfer>
+</data-extraction-rules>

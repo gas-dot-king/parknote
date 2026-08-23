@@ -49,38 +49,44 @@ class BtPicker {
         ArrayList<String> names = bondedNames(a);
         if (names == null || names.isEmpty()) {
             new AlertDialog.Builder(a)
-                    .setTitle("고를 수 있는 기기가 없어요")
+                    .setTitle(R.string.bt_none_title)
                     .setMessage(names == null
-                            ? "블루투스 권한이 없거나 기기가 블루투스를 지원하지 않아요. "
-                                    + "이름을 직접 입력할 수 있어요."
-                            : "페어링된 기기가 없어요. 차에 타서 블루투스가 연결된 뒤 "
-                                    + "다시 시도하거나, 이름을 직접 입력해 주세요.")
-                    .setPositiveButton("직접 입력", (d, w) -> manual(a, current, onPicked))
-                    .setNegativeButton("나중에", null)
+                            ? R.string.bt_no_permission : R.string.bt_no_bonded)
+                    .setPositiveButton(R.string.bt_manual_button,
+                            (d, w) -> manual(a, current, onPicked))
+                    .setNegativeButton(R.string.action_later, null)
                     .show();
             return;
         }
         ArrayList<String> items = new ArrayList<>(names);
-        items.add("직접 입력…");
-        if (current != null && !current.trim().isEmpty()) items.add("비우기 · 수동 기록만");
+        int manualIndex = items.size();
+        items.add(a.getString(R.string.bt_manual_entry));
+        int clearIndex = -1;
+        if (current != null && !current.trim().isEmpty()) {
+            clearIndex = items.size();
+            items.add(a.getString(R.string.bt_clear));
+        }
         String[] entries = items.toArray(new String[0]);
+        final int manualAt = manualIndex;
+        final int clearAt = clearIndex;
 
+        // 문구가 아니라 인덱스로 분기한다. 예전에는 항목 텍스트의 접두사를 비교해서,
+        // 문구를 다듬는 순간 조용히 엉뚱한 기기가 선택될 수 있었다.
         new AlertDialog.Builder(a)
-                .setTitle("차 블루투스 고르기")
+                .setTitle(R.string.bt_pick_title)
                 .setItems(entries, (d, which) -> {
-                    String chosen = entries[which];
-                    if (chosen.startsWith("직접 입력")) manual(a, current, onPicked);
-                    else if (chosen.startsWith("비우기")) onPicked.onPicked("");
-                    else onPicked.onPicked(chosen);
+                    if (which == manualAt) manual(a, current, onPicked);
+                    else if (which == clearAt) onPicked.onPicked("");
+                    else onPicked.onPicked(entries[which]);
                 })
-                .setNegativeButton("취소", null)
+                .setNegativeButton(R.string.action_cancel, null)
                 .show();
     }
 
     private static void manual(Activity a, String current, OnPicked onPicked) {
         EditText input = new EditText(a);
         input.setText(current == null ? "" : current);
-        input.setHint("예: CAR-AUDIO");
+        input.setHint(R.string.bt_manual_hint);
         input.setSingleLine(true);
         input.setInputType(InputType.TYPE_CLASS_TEXT);
         input.setSelection(input.getText().length());
@@ -91,12 +97,12 @@ class BtPicker {
         wrap.addView(input);
 
         new AlertDialog.Builder(a)
-                .setTitle("블루투스 이름 직접 입력")
-                .setMessage("차에 연결됐을 때 표시되는 기기 이름과 정확히 같아야 해요.")
+                .setTitle(R.string.bt_manual_title)
+                .setMessage(R.string.bt_manual_message)
                 .setView(wrap)
-                .setPositiveButton("저장",
+                .setPositiveButton(R.string.action_save,
                         (d, w) -> onPicked.onPicked(input.getText().toString().trim()))
-                .setNegativeButton("취소", null)
+                .setNegativeButton(R.string.action_cancel, null)
                 .show();
     }
 }

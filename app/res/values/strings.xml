@@ -1,19 +1,337 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  사용자에게 보이는 문구는 전부 여기 있다.
+
+  이 앱은 문구가 성격을 만든다 ("아맞다! B2-A에 댔어요", "위치를 알 수 없을 때는 놓치지
+  않도록 평소대로 알려요"). 자바 리터럴로 흩어져 있으면 문구를 다듬는 게 코드 수정이 되고,
+  한 번에 통독하며 말투를 맞춰 볼 수도 없다.
+-->
 <resources>
+
+    <!-- ── 브랜드 ─────────────────────────────────────────────────────────── -->
     <string name="app_name">아맞다주차!</string>
     <string name="brand_tagline">아맞다, 여기 댔지.</string>
+    <string name="brand_mark">!</string>
+
+    <!-- ── 공통 버튼 ──────────────────────────────────────────────────────── -->
+    <string name="action_save">저장</string>
+    <string name="action_cancel">취소</string>
+    <string name="action_delete">삭제</string>
+    <string name="action_close">닫기</string>
+    <string name="action_add">추가</string>
+    <string name="action_ok">확인</string>
+    <string name="action_later">나중에</string>
+    <string name="action_reset">기본값</string>
+
+    <!-- ── 메인 화면 ──────────────────────────────────────────────────────── -->
     <string name="current_label">지금 주차한 곳</string>
     <string name="edit">수정</string>
     <string name="delete">삭제</string>
-    <string name="parking_timer">출차 시간 알림</string>
-    <string name="timer_notice">절전 모드에서는 알림이 조금 늦을 수 있어요.</string>
     <string name="settings">설정</string>
+    <string name="add">추가</string>
     <string name="custom_input">직접 위치 입력</string>
     <string name="zone_prompt">어디에 대셨어요?</string>
     <string name="zone_edit">구역 편집</string>
     <string name="habit_title">나가기 전 체크</string>
-    <string name="add">추가</string>
     <string name="history_title">최근에 댄 곳</string>
-    <string name="widget_empty">아직 기억한 위치가 없어요</string>
     <string name="empty_location">아직 없어요</string>
+    <string name="widget_empty">아직 기억한 위치가 없어요</string>
+
+    <string name="status_empty_hint">%1$s · 나가기 전에 한 번만 남겨두세요</string>
+    <string name="status_time">%1$s · %2$s</string>
+    <string name="habits_empty">\'추가\'를 눌러 반복할 일을 등록해 보세요</string>
+    <string name="streak_days">%1$d일 연속</string>
+    <string name="all_history_link">전체 주차 기록 %1$d개 보기  ›</string>
+
+    <!-- 상단 주\李장 칩. ▾는 "눌러서 바꿀 수 있다"는 표시다. -->
+    <string name="profile_chip">%1$s ▾</string>
+
+    <!-- 접근성 라벨 -->
+    <string name="cd_switch_profile">주차장 전환</string>
+    <string name="cd_edit_record">지금 주차한 곳 수정</string>
+    <string name="cd_delete_record">지금 주차한 곳 삭제</string>
+    <string name="cd_add_habit">체크 항목 추가</string>
+    <string name="cd_edit_history">%1$s 기록 수정</string>
+    <string name="cd_habit_checked">%1$s, 오늘 체크함</string>
+    <string name="cd_habit_unchecked">%1$s, 오늘 안 함</string>
+
+    <!-- ── 기록 저장 ──────────────────────────────────────────────────────── -->
+    <string name="record_saved">아맞다! %1$s에 댔어요</string>
+    <string name="record_save_failed">기록을 저장하지 못했어요. 설정에서 주차장과 차량을 확인해 주세요</string>
+    <string name="record_context_changed">차량 또는 주차장 설정이 바뀌었어요. 앱에서 다시 선택해 주세요</string>
+    <string name="custom_input_title">다른 위치 직접 입력</string>
+    <string name="custom_input_hint">예: 롯데몰 B2 F기둥</string>
+    <string name="confirm_delete_last">마지막 기록(%1$s)을 삭제할까요?</string>
+
+    <!-- ── 설정 메뉴 ──────────────────────────────────────────────────────── -->
+    <string name="settings_title">%1$s 설정</string>
+    <string name="settings_switch_profile">주차장 전환 · %1$s</string>
+    <string name="settings_manage_profile">현재 주차장 관리</string>
+    <string name="settings_switch_vehicle">차량 전환 · %1$s</string>
+    <string name="settings_manage_vehicle">현재 차량 관리</string>
+    <string name="settings_all_history">전체 주차 기록</string>
+    <string name="settings_location_filter">위치로 알림 조절 · %1$s</string>
+    <string name="settings_backup">백업 · 복원</string>
+    <string name="state_on">켜짐</string>
+    <string name="state_off">꺼짐</string>
+
+    <!-- ── 전체 주차 기록 ─────────────────────────────────────────────────── -->
+    <string name="history_empty">저장된 주차 기록이 없어요</string>
+    <string name="history_unknown">알 수 없는 기록</string>
+    <string name="history_row">%1$s\n%2$s · %3$s · %4$s</string>
+
+    <!-- ── 주차장 프로필 ──────────────────────────────────────────────────── -->
+    <string name="profile_default_name">주차장</string>
+    <string name="profile_deleted">삭제된 주차장</string>
+    <string name="profile_switch_title">주차장 전환</string>
+    <string name="profile_selected">✓ %1$s</string>
+    <string name="profile_rename">이름 변경</string>
+    <string name="profile_manage_zones">구역 관리</string>
+    <string name="profile_new_title">새 주차장</string>
+    <string name="profile_rename_title">주차장 이름 변경</string>
+    <string name="profile_name_hint">예: 우리 집, 회사</string>
+    <string name="profile_added">새 주차장을 추가했어요</string>
+    <string name="profile_renamed">이름을 바꿨어요</string>
+    <string name="profile_deleted_toast">주차장을 삭제했어요</string>
+    <string name="profile_delete_confirm">\'%1$s\' 주차장을 삭제할까요?\n기존 기록은 설정의 전체 주차 기록에서 계속 확인·수정할 수 있어요.\n이 주차장의 출차 알림은 해제돼요.</string>
+    <string name="profile_choose_title">주차장 선택</string>
+    <string name="profile_deleted_prefix">삭제된 주차장: %1$s</string>
+
+    <!-- ── 차량 ───────────────────────────────────────────────────────────── -->
+    <string name="vehicle_default_name">차량</string>
+    <string name="vehicle_deleted">삭제된 차량</string>
+    <string name="vehicle_switch_title">차량 전환</string>
+    <string name="vehicle_edit_title">차량 정보 수정</string>
+    <string name="vehicle_add_title">차량 추가</string>
+    <string name="vehicle_name_label">차량 이름</string>
+    <string name="vehicle_name_hint">예: 내 차, 가족 차</string>
+    <string name="vehicle_bt_label">차 블루투스 (선택)</string>
+    <string name="vehicle_bt_guide">블루투스를 고르지 않으면 수동 기록 전용 차량이 돼요.</string>
+    <string name="vehicle_bt_none">고르지 않음 · 수동 기록만</string>
+    <string name="vehicle_manual_suffix">%1$s · 수동 기록</string>
+    <string name="vehicle_bt_suffix">%1$s · %2$s</string>
+    <string name="vehicle_added">차량을 추가했어요</string>
+    <string name="vehicle_saved">차량 정보를 저장했어요</string>
+    <string name="vehicle_deleted_toast">차량을 삭제했어요</string>
+    <string name="vehicle_delete_confirm">\'%1$s\' 차량을 삭제할까요?\n기존 기록은 설정의 전체 주차 기록에서 계속 확인·수정할 수 있어요.\n이 차량의 출차 알림과 블루투스 알림은 해제돼요.</string>
+    <string name="vehicle_choose_title">차량 선택</string>
+    <string name="vehicle_deleted_prefix">삭제된 차량: %1$s</string>
+
+    <!-- ── 블루투스 고르기 ────────────────────────────────────────────────── -->
+    <string name="bt_pick_title">차 블루투스 고르기</string>
+    <string name="bt_manual_entry">직접 입력…</string>
+    <string name="bt_clear">비우기 · 수동 기록만</string>
+    <string name="bt_none_title">고를 수 있는 기기가 없어요</string>
+    <string name="bt_no_permission">블루투스 권한이 없거나 기기가 블루투스를 지원하지 않아요. 이름을 직접 입력할 수 있어요.</string>
+    <string name="bt_no_bonded">페어링된 기기가 없어요. 차에 타서 블루투스가 연결된 뒤 다시 시도하거나, 이름을 직접 입력해 주세요.</string>
+    <string name="bt_manual_button">직접 입력</string>
+    <string name="bt_manual_title">블루투스 이름 직접 입력</string>
+    <string name="bt_manual_message">차에 연결됐을 때 표시되는 기기 이름과 정확히 같아야 해요.</string>
+    <string name="bt_manual_hint">예: CAR-AUDIO</string>
+    <string name="bt_permission_denied">블루투스 권한이 없으면 기기 목록을 볼 수 없어요</string>
+
+    <!-- ── 기록 수정 ──────────────────────────────────────────────────────── -->
+    <string name="record_edit_title">주차 기록 수정</string>
+    <string name="record_not_found">기록을 찾을 수 없어요</string>
+    <string name="record_no_edit_target">수정할 주차 기록이 없어요</string>
+    <string name="record_label_profile">주차장</string>
+    <string name="record_label_vehicle">차량</string>
+    <string name="record_label_zone">주차 위치</string>
+    <string name="record_label_time">주차 시각</string>
+    <string name="record_label_memo">메모 (선택)</string>
+    <string name="record_zone_hint">예: B2-A</string>
+    <string name="record_memo_hint">예: 엘리베이터 옆, F기둥</string>
+    <string name="record_zone_required">주차 위치를 입력해 주세요</string>
+    <string name="record_memo_too_long">메모는 %1$d자까지 입력할 수 있어요</string>
+    <string name="record_save_error">기록을 저장하지 못했어요</string>
+    <string name="record_updated">주차 기록을 수정했어요</string>
+    <string name="record_delete_confirm">이 주차 기록을 삭제할까요?</string>
+
+    <!-- ── 출차 시간 알림 ─────────────────────────────────────────────────── -->
+    <string name="parking_timer">출차 시간 알림</string>
+    <string name="timer_notice">절전 모드에서는 알림이 조금 늦을 수 있어요.</string>
+    <string name="timer_clear">%1$s 해제</string>
+    <string name="timer_30m">30분 후</string>
+    <string name="timer_1h">1시간 후</string>
+    <string name="timer_2h">2시간 후</string>
+    <string name="timer_custom">직접 지정</string>
+    <string name="timer_set">설정됨 · %1$s</string>
+    <string name="timer_unset">설정 안 함</string>
+    <string name="timer_must_be_future">현재 시각 이후로 설정해 주세요</string>
+    <string name="timer_enabled">%1$s을 설정했어요</string>
+    <string name="timer_disabled">%1$s을 해제했어요</string>
+    <string name="timer_notification_title">%1$s · 출차 시간</string>
+    <string name="timer_channel">%1$s · 출차 시간 알림</string>
+
+    <!-- ── 구역 편집 ──────────────────────────────────────────────────────── -->
+    <string name="zone_edit_guide">한 줄에 하나씩, 입력한 순서대로 표시돼요.\n예: 층 B1·B2 + 구역 A·B → B1-A, B1-B, B2-A, B2-B\n홈 위젯에는 앞 6칸만 표시되므로 짧은 이름을 권장해요.</string>
+    <string name="zone_rows_label">층 · 선택 (최대 %1$d개)</string>
+    <string name="zone_rows_hint">비워 두면 층 없이 구역 버튼만 표시해요</string>
+    <string name="zone_rows_cd">층, 한 줄에 하나, 비워 둘 수 있음</string>
+    <string name="zone_cols_label">구역 (최대 %1$d개, 층이 없으면 %2$d개)</string>
+    <string name="zone_cols_hint">예: A</string>
+    <string name="zone_cols_cd">구역, 한 줄에 하나</string>
+    <string name="zone_etc_label">기타 구역 · 작은 버튼 (선택)</string>
+    <string name="zone_etc_hint">비워 두면 기타 버튼을 숨겨요</string>
+    <string name="zone_etc_cd">기타 구역, 한 줄에 하나, 비워 둘 수 있음</string>
+    <string name="zone_preview">미리보기</string>
+    <string name="zone_preview_count">버튼 %1$d개</string>
+    <string name="zone_preview_etc">%1$s · 기타 %2$d개</string>
+    <string name="zone_preview_clipped">%1$s\n상한을 넘은 줄은 미리보기에서 생략했어요</string>
+    <string name="zone_required">구역을 하나 이상 입력해 주세요</string>
+    <string name="zone_name_too_long">구역 이름은 %1$d자까지 입력할 수 있어요</string>
+    <string name="zone_duplicate">중복된 구역이 있어요: %1$s</string>
+    <string name="zone_group_too_many">각 목록은 %1$d개까지 저장할 수 있어요</string>
+    <string name="zone_limit">%1$s은 %2$d개까지 만들 수 있어요</string>
+    <string name="zone_rows_name">층</string>
+    <string name="zone_cols_name">구역</string>
+    <string name="zone_saved">구역을 저장했어요</string>
+    <string name="zone_reset_confirm">구역을 처음 설치했을 때의 기본값으로 되돌릴까요?\n기존 주차 기록은 그대로 남아요.</string>
+    <string name="zone_reset_action">되돌리기</string>
+    <string name="zone_reset_done">기본 구역으로 되돌렸어요</string>
+
+    <!-- Store가 던지는 검증 메시지 -->
+    <string name="err_profile_name_required">주차장 이름을 입력해 주세요</string>
+    <string name="err_profile_limit">주차장은 %1$d개까지 만들 수 있어요</string>
+    <string name="err_profile_name_taken">이미 같은 이름의 주차장이 있어요</string>
+    <string name="err_profile_not_found">주차장을 찾을 수 없어요</string>
+    <string name="err_vehicle_name_required">차량 이름을 입력해 주세요</string>
+    <string name="err_vehicle_limit">차량은 %1$d대까지 등록할 수 있어요</string>
+    <string name="err_vehicle_name_taken">이미 같은 이름의 차량이 있어요</string>
+    <string name="err_vehicle_not_found">차량을 찾을 수 없어요</string>
+    <string name="err_bt_name_taken">이미 같은 블루투스 이름이 등록되어 있어요</string>
+    <string name="err_zone_required">구역을 하나 이상 남겨 주세요</string>
+    <string name="err_zone_grid_overlap">격자와 기타 구역에 같은 이름이 있어요: %1$s</string>
+
+    <!-- ── 체크 항목 ──────────────────────────────────────────────────────── -->
+    <string name="habit_add_title">체크 항목 추가</string>
+    <string name="habit_name_hint">예: 영양제</string>
+    <string name="habit_duplicate">이미 있는 항목이에요</string>
+    <string name="habit_added_tip">항목을 길게 누르면 리마인더를 설정할 수 있어요</string>
+    <string name="habit_reminder_set">리마인더 설정</string>
+    <string name="habit_reminder_change">리마인더 변경 (%1$s)</string>
+    <string name="habit_reminder_clear">리마인더 해제</string>
+    <string name="habit_reminder_cleared">리마인더 해제</string>
+    <string name="habit_reminder_daily">매일 %1$s에 알림</string>
+    <string name="habit_delete_confirm">\'%1$s\'을(를) 삭제할까요? 기록도 함께 지워져요.</string>
+    <string name="habit_channel">%1$s · 체크 알림</string>
+    <string name="habit_notification_text">%1$s · 아직 체크하지 않았어요</string>
+    <string name="habit_check_now">지금 체크</string>
+
+    <!-- ── 백업 · 복원 ────────────────────────────────────────────────────── -->
+    <string name="backup_title">백업 · 복원</string>
+    <string name="backup_message">기록은 이 기기 안에만 있어요. 앱을 지웠다 깔거나 폰을 바꾸면 사라지니, 가끔 파일로 내보내 두세요.</string>
+    <string name="backup_export">파일로 내보내기</string>
+    <string name="backup_import">백업에서 가져오기</string>
+    <string name="backup_no_saver">파일을 저장할 앱을 찾지 못했어요</string>
+    <string name="backup_no_picker">파일을 고를 앱을 찾지 못했어요</string>
+    <string name="backup_saving">백업을 저장하는 중이에요…</string>
+    <string name="backup_reading">백업을 읽는 중이에요…</string>
+    <string name="backup_saved">백업을 저장했어요</string>
+    <string name="backup_imported">백업을 가져왔어요</string>
+    <string name="backup_import_action">가져오기</string>
+    <string name="backup_import_confirm">%1$s\n\n지금 이 기기에 있는 주차 기록·주차장·차량·체크가 모두 사라지고 백업 내용으로 바뀝니다. 예약된 알림도 다시 맞춰져요.</string>
+    <string name="backup_summary">%1$s에 저장\n주차장 %2$d개 · 차량 %3$d대 · 주차 기록 %4$d개 · 체크 %5$d개</string>
+    <string name="backup_saved_unknown">시각 미상</string>
+
+    <string name="backup_err_build">백업 파일을 만들지 못했어요</string>
+    <string name="backup_err_write">파일에 쓰지 못했어요</string>
+    <string name="backup_err_open">파일을 열지 못했어요</string>
+    <string name="backup_err_read">파일을 읽지 못했어요</string>
+    <string name="backup_err_too_big">백업 파일이 너무 커요</string>
+    <string name="backup_err_not_ours">이 앱의 백업 파일이 아니에요</string>
+    <string name="backup_err_newer">더 새로운 버전에서 만든 백업이라 이 버전에서는 읽을 수 없어요</string>
+    <string name="backup_err_empty">백업 내용이 비어 있어요</string>
+    <string name="backup_err_no_profiles">주차장 정보가 없는 파일이에요</string>
+    <string name="backup_err_no_vehicles">차량 정보가 없는 파일이에요</string>
+    <string name="backup_err_bad_history">주차 기록이 손상된 파일이에요</string>
+    <string name="backup_err_bad_habits">체크 기록이 손상된 파일이에요</string>
+
+    <!-- ── 위치로 알림 조절 ───────────────────────────────────────────────── -->
+    <string name="location_title">위치로 알림 조절</string>
+    <string name="location_enable">켜기</string>
+    <string name="location_disable">끄기</string>
+    <string name="location_recapture">\'%1$s\' 위치 다시 잡기</string>
+    <string name="location_capture">지금 위치를 \'%1$s\'으로 저장</string>
+    <string name="location_clear">\'%1$s\' 위치 지우기</string>
+    <string name="location_message">등록한 주차장 근처에서 차에서 내리면 평소대로 알리고, 그 밖에서는 소리 없이 알림함에만 남겨요.\n위치를 알 수 없을 때는 놓치지 않도록 평소대로 알려요.\n\n현재 %1$s · \'%2$s\' 위치 %3$s</string>
+    <string name="location_registered">등록됨 (반경 %1$dm)</string>
+    <string name="location_unregistered">없음</string>
+    <string name="location_none_note">\n\n※ 등록된 위치가 하나도 없어 지금은 평소와 똑같이 동작해요.</string>
+    <string name="location_turned_on">위치 조절을 켰어요</string>
+    <string name="location_turned_off">위치 조절을 껐어요</string>
+    <string name="location_cleared">위치를 지웠어요</string>
+    <string name="location_first_capture">이제 주차장 위치를 등록하면 돼요. 지금 \'%1$s\'에 계신가요?</string>
+    <string name="location_capture_now">지금 위치 저장</string>
+    <string name="location_capturing">위치를 잡는 중이에요…</string>
+    <string name="location_capture_failed_title">위치를 잡지 못했어요</string>
+    <string name="location_capture_failed">위치 서비스가 꺼져 있거나 실내라 신호가 약할 수 있어요.\n지하 주차장이라면 지상으로 올라와서, 또는 지도 앱으로 현재 위치를 한 번 확인한 뒤 다시 시도해 주세요.</string>
+    <string name="location_save_title">\'%1$s\' 위치로 저장할까요?</string>
+    <string name="location_save_message">%1$s\n\n이 지점 반경 %2$dm 안에서 차에서 내리면 \'%3$s\'에 댄 것으로 봅니다.\n지하 주차장은 신호가 안 잡히니, 진입 직전에 잡힌 좌표로 판정해요. 그래서 반경을 넉넉히 잡습니다.</string>
+    <string name="location_saved">\'%1$s\' 위치를 저장했어요</string>
+    <string name="location_denied">위치 권한이 없으면 이 기능을 쓸 수 없어요</string>
+    <string name="location_denied_capture">위치 권한이 없으면 주차장 위치를 저장할 수 없어요</string>
+    <string name="location_bg_title">\'항상 허용\'이 필요해요</string>
+    <string name="location_bg_message">차에서 내리는 순간은 앱이 꺼져 있을 때라, 위치 권한을 \'항상 허용\'으로 바꿔야 어느 주차장인지 알 수 있어요.\n\n설정 → 권한 → 위치 → \'항상 허용\'을 선택해 주세요. 좌표는 기기 안에서만 쓰고 어디로도 보내지 않아요.</string>
+    <string name="location_open_settings">설정 열기</string>
+    <string name="location_settings_failed">설정 화면을 열지 못했어요</string>
+    <string name="location_accuracy">%1$s 측정 · 오차 약 %2$dm</string>
+    <string name="location_just_now">방금</string>
+    <string name="location_minutes_ago">%1$d분 전</string>
+
+    <!-- ── 블루투스 주차 알림 ─────────────────────────────────────────────── -->
+    <string name="bt_channel">%1$s · 위치 기록</string>
+    <string name="bt_channel_quiet">%1$s · 조용한 위치 기록</string>
+    <string name="bt_notification_title">%1$s · %2$s</string>
+    <string name="bt_notification_known">%1$s에 댄 곳을 남겨둘까요?</string>
+    <string name="bt_notification_elsewhere">등록한 주차장이 아니에요. 남겨둘까요?</string>
+
+    <!-- ── 위젯 ───────────────────────────────────────────────────────────── -->
+    <string name="widget_status_empty">%1$s · 아직 없어요 · %2$s · %3$s</string>
+    <string name="widget_status">%1$s · %2$s · %3$s · %4$s · %5$s</string>
+    <string name="widget_zone_b1a">B1-A</string>
+    <string name="widget_zone_b1b">B1-B</string>
+    <string name="widget_zone_b2a">B2-A</string>
+    <string name="widget_zone_b2b">B2-B</string>
+    <string name="widget_zone_b3a">B3-A</string>
+    <string name="widget_zone_b3b">B3-B</string>
+
+    <!-- ── 퀵설정 타일 ────────────────────────────────────────────────────── -->
+    <string name="tile_subtitle">%1$s · %2$s · %3$s · %4$s</string>
+
+    <!-- ── 온보딩 ─────────────────────────────────────────────────────────── -->
+    <string name="onboarding_step">STEP %1$d / %2$d</string>
+    <string name="onboarding_next">다음</string>
+    <string name="onboarding_start">시작하기</string>
+    <string name="onboarding_back">이전</string>
+    <string name="onboarding_skip">건너뛰기</string>
+    <string name="onboarding_profile_title">어디에 주차하세요?</string>
+    <string name="onboarding_profile_body">자주 대는 주차장 이름이에요. 나중에 회사·부모님 댁처럼 더 추가할 수 있어요.</string>
+    <string name="onboarding_profile_hint">예: 우리 집</string>
+    <string name="onboarding_profile_required">주차장 이름을 입력해 주세요</string>
+    <string name="onboarding_grid_title">주차장이 어떻게 나뉘어 있나요?</string>
+    <string name="onboarding_grid_body">층만 기억해선 못 찾는 곳이라면 구역까지 나눠 두세요.</string>
+    <string name="onboarding_grid_floors_zones">층 + 구역\nB2-C</string>
+    <string name="onboarding_grid_floors_only">층만\nB2</string>
+    <string name="onboarding_grid_floor_count">지하 몇 층까지 있나요?</string>
+    <string name="onboarding_grid_zone_count">한 층에 구역이 몇 개인가요?</string>
+    <string name="onboarding_grid_sample">버튼 %1$d개 · 예: %2$s 처럼 저장돼요\n이름은 설정에서 언제든 바꿀 수 있어요.</string>
+    <string name="onboarding_grid_sample_empty">버튼 %1$d개\n이름은 설정에서 언제든 바꿀 수 있어요.</string>
+    <string name="onboarding_vehicle_title">어떤 차를 타세요?</string>
+    <string name="onboarding_vehicle_body">차 블루투스가 끊기면 = 차에서 내리면, 주차 위치를 남길지 알림으로 물어봐요.</string>
+    <string name="onboarding_vehicle_hint">예: 내 차, 아빠 차</string>
+    <string name="onboarding_bt_label">차 블루투스</string>
+    <string name="onboarding_bt_body">탭하면 페어링된 기기 목록에서 고를 수 있어요. 지금 차에 안 타고 있다면 비워 두고 나중에 설정에서 골라도 돼요.</string>
+    <string name="onboarding_perm_title">마지막이에요</string>
+    <string name="onboarding_perm_body">아래 권한만 쓰고, 어떤 정보도 기기 밖으로 내보내지 않아요.</string>
+    <string name="onboarding_perm_notify">알림</string>
+    <string name="onboarding_perm_notify_detail">주차 위치를 남길지 묻고, 출차 시간을 알려 줘요.</string>
+    <string name="onboarding_perm_bt">근처 기기 (블루투스)</string>
+    <string name="onboarding_perm_bt_detail">차 블루투스가 끊기는 순간만 감지해요. 위치 추적은 하지 않아요.</string>
+    <string name="onboarding_perm_note">상주 알림이나 배터리 최적화 해제는 요구하지 않아요.</string>
+    <string name="onboarding_skip_confirm">기본 설정(지하 3층 · 구역 2개)으로 시작할까요?\n설정에서 언제든 바꿀 수 있어요.</string>
+    <string name="onboarding_skip_action">이대로 시작</string>
+    <string name="onboarding_skip_continue">계속 설정</string>
+    <string name="onboarding_default_profile">우리 집</string>
+    <string name="onboarding_default_vehicle">내 차</string>
 </resources>

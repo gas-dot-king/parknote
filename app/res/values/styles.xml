@@ -6,6 +6,21 @@
         <item name="android:navigationBarColor">@color/bg</item>
         <item name="android:windowLightStatusBar">false</item>
         <item name="android:colorAccent">@color/accent</item>
+        <!-- 다이얼로그 테마를 고정한다. 이걸 두지 않으면 Theme.DeviceDefault를
+             시스템 다크모드에 연동하는 기기(삼성 One UI 등)에서 라이트 다이얼로그가
+             떠서, 우리가 칠한 밝은 글자가 흰 배경에 묻힌다. -->
+        <item name="android:alertDialogTheme">@style/AppDialog</item>
+    </style>
+
+    <!-- 앱 안의 모든 AlertDialog가 쓰는 테마. 색을 전부 명시해 OEM 기본값에 기대지 않는다. -->
+    <style name="AppDialog" parent="@android:style/Theme.DeviceDefault.Dialog.Alert">
+        <item name="android:windowBackground">@drawable/bg_dialog</item>
+        <item name="android:colorBackground">@color/card</item>
+        <item name="android:colorAccent">@color/accent</item>
+        <item name="android:textColorPrimary">@color/text</item>
+        <item name="android:textColorSecondary">@color/subtext</item>
+        <!-- setItems / setSingleChoiceItems 목록 항목 색 -->
+        <item name="android:textColorAlertDialogListItem">@color/text</item>
     </style>
 
     <!-- 위젯 구역 버튼 공통 스타일 -->
@@ -30,5 +45,26 @@
         <item name="android:layout_height">0dp</item>
         <item name="android:layout_weight">1</item>
         <item name="android:orientation">horizontal</item>
+    </style>
+
+    <!--
+      상태 카드의 보조 조작 (수정 · 삭제 · 구역 편집 · 추가).
+
+      예전에는 TextView + padding 4dp라 실측 48dp가 아니라 26dp였다. 운전 직후
+      한 손으로 누르는 앱에서 제일 아픈 지점이었고, TextView라 리플 피드백도 없고
+      스크린 리더에 버튼으로 읽히지도 않았다.
+    -->
+    <style name="InlineAction">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">48dp</item>
+        <item name="android:minWidth">56dp</item>
+        <item name="android:background">?android:attr/selectableItemBackgroundBorderless</item>
+        <item name="android:stateListAnimator">@null</item>
+        <item name="android:gravity">center</item>
+        <item name="android:paddingLeft">10dp</item>
+        <item name="android:paddingRight">10dp</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:fontFamily">sans-serif</item>
+        <item name="android:textSize">13sp</item>
     </style>
 </resources>

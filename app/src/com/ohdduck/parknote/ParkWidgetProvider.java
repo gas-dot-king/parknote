@@ -36,8 +36,8 @@ public class ParkWidgetProvider extends AppWidgetProvider {
                         intent.getStringExtra(EXTRA_PROFILE_ID),
                         intent.getStringExtra(EXTRA_VEHICLE_ID), zone, "");
                 Toast.makeText(ctx, recordId == null
-                                ? "차량 또는 주차장 설정이 바뀌었어요. 앱에서 다시 선택해 주세요"
-                                : "아맞다! " + zone + "에 댔어요",
+                                ? ctx.getString(R.string.record_context_changed)
+                                : ctx.getString(R.string.record_saved, zone),
                         Toast.LENGTH_SHORT).show();
             }
             return;
@@ -65,11 +65,11 @@ public class ParkWidgetProvider extends AppWidgetProvider {
         String latest = Store.latestZone(ctx);
         String brand = ctx.getString(R.string.app_name);
         rv.setTextViewText(R.id.widgetStatus, latest == null
-                ? brand + " · 아직 없어요 · " + Store.activeProfileName(ctx)
-                        + " · " + Store.activeVehicleName(ctx)
-                : brand + " · " + latest + " · " + Store.formatShort(Store.latestTime(ctx))
-                        + " · " + Store.activeProfileName(ctx)
-                        + " · " + Store.activeVehicleName(ctx));
+                ? ctx.getString(R.string.widget_status_empty, brand,
+                        Store.activeProfileName(ctx), Store.activeVehicleName(ctx))
+                : ctx.getString(R.string.widget_status, brand, latest,
+                        Store.formatShort(Store.latestTime(ctx)),
+                        Store.activeProfileName(ctx), Store.activeVehicleName(ctx)));
 
         // 격자가 크면 앞 6칸이 전부 첫 번째 층이라, 늘 B2에 대는 사람은 위젯에서
         // 자기 자리를 영영 못 누른다. 최근에 쓴 구역으로 골라 담는다.

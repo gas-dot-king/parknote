@@ -44,7 +44,7 @@ public class ParkingTimerReceiver extends BroadcastReceiver {
         String brand = ctx.getString(R.string.app_name);
         // 기존 알림 권한/소리 설정은 그대로 두고 채널 표시명만 새 브랜드로 갱신한다.
         nm.createNotificationChannel(new NotificationChannel(
-                Store.CHANNEL_TIMER, brand + " · 출차 시간 알림",
+                Store.CHANNEL_TIMER, ctx.getString(R.string.timer_channel, brand),
                 NotificationManager.IMPORTANCE_HIGH));
 
         Intent openIntent = new Intent(ctx, MainActivity.class)
@@ -55,13 +55,13 @@ public class ParkingTimerReceiver extends BroadcastReceiver {
         PendingIntent open = PendingIntent.getActivity(ctx, 30, openIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
-        String zone = entry.optString("z", "주차 위치");
+        String zone = entry.optString("z", ctx.getString(R.string.record_label_zone));
         String detail = Store.recordProfileName(ctx, entry) + " · " + zone;
         String memo = Store.recordMemo(entry);
         if (!memo.isEmpty()) detail += " · " + memo;
         Notification notification = new Notification.Builder(ctx, Store.CHANNEL_TIMER)
                 .setSmallIcon(R.drawable.ic_notif)
-                .setContentTitle(brand + " · 출차 시간")
+                .setContentTitle(ctx.getString(R.string.timer_notification_title, brand))
                 .setContentText(detail)
                 .setContentIntent(open)
                 .setAutoCancel(true)

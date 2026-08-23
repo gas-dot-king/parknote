@@ -1,5 +1,6 @@
 package com.ohdduck.parknote;
 
+import android.annotation.SuppressLint;
 import android.app.PendingIntent;
 import android.content.Intent;
 import android.os.Build;
@@ -14,19 +15,27 @@ public class ParkTileService extends TileService {
         Tile t = getQsTile();
         if (t == null) return;
         String zone = Store.latestZone(this);
-        t.setState(Tile.STATE_ACTIVE);
+        // 기록이 없으면 비활성으로 둔다. 항상 ACTIVE면 "지금 어딘가에 대 있다"는
+        // 잘못된 신호를 준다.
+        t.setState(zone == null ? Tile.STATE_INACTIVE : Tile.STATE_ACTIVE);
         t.setLabel(zone == null ? getString(R.string.app_name) : zone);
         if (Build.VERSION.SDK_INT >= 29 && zone != null) {
-            t.setSubtitle(getString(R.string.app_name) + " · "
-                    + Store.activeProfileName(this) + " · "
-                    + Store.activeVehicleName(this) + " · "
-                    + Store.formatShort(Store.latestTime(this)));
+            t.setSubtitle(getString(R.string.tile_subtitle,
+                    getString(R.string.app_name),
+                    Store.activeProfileName(this),
+                    Store.activeVehicleName(this),
+                    Store.formatShort(Store.latestTime(this))));
         }
         t.updateTile();
     }
 
+    /**
+     * Android 14부터 Intent를 받는 오버로드가 UnsupportedOperationException을 던진다.
+     * 버전으로 갈라 쓰므로 실제로는 안전하고, lint가 그 분기를 못 읽어 경고만 남는다.
+     */
     @Override
     @SuppressWarnings("deprecation")
+    @SuppressLint("StartActivityAndCollapseDeprecated")
     public void onClick() {
         Intent i = new Intent(this, MainActivity.class)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);

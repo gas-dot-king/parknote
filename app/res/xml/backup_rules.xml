@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 11 이하의 백업 규칙. allowBackup="false"라 실제로는 어떤 백업도 일어나지
+  않지만, 12+의 data_extraction_rules와 짝을 맞춰 "클라우드로 아무것도 보내지 않는다"는
+  의도를 두 경로 모두에 명시해 둔다.
+-->
+<full-backup-content>
+    <exclude domain="root" path="." />
+    <exclude domain="file" path="." />
+    <exclude domain="database" path="." />
+    <exclude domain="sharedpref" path="." />
+    <exclude domain="external" path="." />
+</full-backup-content>

@@ -76,7 +76,26 @@ android {
             java.srcDirs = ['src']
             res.srcDirs = ['res']
         }
+        // 소스 배치가 표준(src/main/java)이 아니라 테스트 소스셋도 직접 지정해야 한다.
+        test {
+            java.srcDirs = ['test']
+        }
     }
+
+    testOptions {
+        unitTests {
+            // android.jar 스텁을 부르면 예외 대신 기본값을 돌려준다. 아래 테스트는
+            // 안드로이드 API를 건드리지 않는 순수 로직만 다루지만, 안전망으로 둔다.
+            returnDefaultValues = true
+        }
+    }
+}
+
+dependencies {
+    testImplementation 'junit:junit:4.13.2'
+    // android.jar의 org.json은 전부 스텁이다. 실제 구현을 테스트 클래스패스 앞에 둔다.
+    // (AGP는 mockable-android.jar를 항상 마지막에 놓으므로 이쪽이 이긴다.)
+    testImplementation 'org.json:json:20240303'
 }
 
 tasks.configureEach {

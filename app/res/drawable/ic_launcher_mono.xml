@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 13+ 테마 아이콘용 단색 실루엣. 시스템이 색을 입히므로 여기서는 형태만 정한다.
+  느낌표를 핀에서 파내서(evenOdd) 단색으로 칠해도 "아, 맞다!"가 읽히게 한다.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108"
+    android:tint="#FFFFFF">
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M54,15 C34.7,15 19,30.7 19,50 C19,73.2 47.2,95.3 52.4,99.1 C53.3,99.7 54.7,99.7 55.6,99.1 C60.8,95.3 89,73.2 89,50 C89,30.7 73.3,15 54,15 Z M50,33 C50,30.8 51.8,29 54,29 C56.2,29 58,30.8 58,33 L58,59 C58,61.2 56.2,63 54,63 C51.8,63 50,61.2 50,59 Z M54,68 C56.5,68 58.5,70 58.5,72.5 C58.5,75 56.5,77 54,77 C51.5,77 49.5,75 49.5,72.5 C49.5,70 51.5,68 54,68 Z" />
+</vector>

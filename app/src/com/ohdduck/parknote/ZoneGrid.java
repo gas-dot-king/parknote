@@ -49,7 +49,7 @@ class ZoneGrid {
             LinearLayout row = null;
             for (int i = 0; i < cols.length; i++) {
                 if (i % perRow == 0) row = addRow(ctx, container);
-                row.addView(cell(ctx, cols[i], cols[i], height, textSp, tap));
+                row.addView(cell(ctx, cols[i], cols[i], height, textSp, R.color.text, tap));
             }
             if (row != null) fillRow(ctx, row, perRow, height);
             return;
@@ -70,9 +70,30 @@ class ZoneGrid {
             row.addView(label, new LinearLayout.LayoutParams(labelWidth, height));
 
             for (String col : cols) {
-                row.addView(cell(ctx, rowLabel + sep + col, col, height, textSp, tap));
+                row.addView(cell(ctx, rowLabel + sep + col, col, height, textSp,
+                        R.color.text, tap));
             }
         }
+    }
+
+    /**
+     * 기타 구역용 작은 버튼 줄. 격자 밖의 평면 목록을 4개씩 끊어 배치한다.
+     *
+     * <p>예전에는 MainActivity가 이 배치를 따로 구현했고, 거기서는 배경을 칠하지 않아
+     * highlight()가 render 시점에 뒤늦게 칠해 주는 데 의존하고 있었다.
+     */
+    static void buildSecondary(Context ctx, LinearLayout container, String[] zones,
+                               OnZoneTap tap) {
+        container.removeAllViews();
+        if (zones == null || zones.length == 0) return;
+        final int perRow = 4;
+        int height = dp(ctx, 42);
+        LinearLayout row = null;
+        for (int i = 0; i < zones.length; i++) {
+            if (i % perRow == 0) row = addRow(ctx, container);
+            row.addView(cell(ctx, zones[i], zones[i], height, 13, R.color.subtext, tap));
+        }
+        if (row != null) fillRow(ctx, row, perRow, height);
     }
 
     /**
@@ -97,14 +118,14 @@ class ZoneGrid {
 
     /** zone은 저장·강조에 쓰는 전체 이름, label은 칸에 실제로 찍히는 짧은 이름. */
     private static Button cell(Context ctx, String zone, String label, int height, int textSp,
-                               OnZoneTap tap) {
+                               int textColorRes, OnZoneTap tap) {
         Button b = new Button(ctx);
         b.setText(label);
         b.setTag(zone);
         b.setContentDescription(zone);
         b.setTextSize(textSp);
         b.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
-        b.setTextColor(ctx.getColor(R.color.text));
+        b.setTextColor(ctx.getColor(textColorRes));
         b.setBackgroundResource(R.drawable.bg_button);
         b.setSingleLine(true);
         b.setEllipsize(TextUtils.TruncateAt.END);

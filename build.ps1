@@ -4,14 +4,28 @@
 
 $ErrorActionPreference = "Stop"
 
-# ---- config -----------------------------------------------------------
-$VersionCode = 13
-$VersionName = "3.1"
-$MinSdk      = 26
-$TargetSdk   = 35
-# -----------------------------------------------------------------------
-
 $Root = $PSScriptRoot
+
+# ---- config ------------------------------------------------------------
+# 버전과 SDK는 app/build.gradle 하나에서만 정한다. 여기에 다시 적어 두면
+# 언젠가 반드시 어긋나고, 그때 어느 쪽이 맞는지 알 방법이 없다.
+$Gradle = Get-Content (Join-Path $Root "app\build.gradle") -Raw
+
+function Read-GradleValue($pattern, $label) {
+    $m = [regex]::Match($Gradle, $pattern)
+    if (-not $m.Success) { throw "app/build.gradle에서 $label 값을 찾지 못했습니다." }
+    return $m.Groups[1].Value
+}
+
+$Namespace   = Read-GradleValue "namespace\s+'([^']+)'"      "namespace"
+$VersionCode = Read-GradleValue "versionCode\s+(\d+)"        "versionCode"
+$VersionName = Read-GradleValue "versionName\s+'([^']+)'"    "versionName"
+$MinSdk      = Read-GradleValue "minSdk\s+(\d+)"             "minSdk"
+$TargetSdk   = Read-GradleValue "targetSdk\s+(\d+)"          "targetSdk"
+
+Write-Host "build.gradle에서 읽음: $Namespace v$VersionName ($VersionCode) · minSdk $MinSdk · targetSdk $TargetSdk"
+# ------------------------------------------------------------------------
+
 $Sdk  = $env:ANDROID_HOME
 if (-not $Sdk)  { $Sdk  = "$env:LOCALAPPDATA\Android\Sdk" }
 $Jdk  = $env:JAVA_HOME
@@ -42,10 +56,22 @@ function Run($exe, $arguments) {
 
 Write-Host "[1/6] compiling resources (aapt2)..."
 Run $Aapt2 @("compile", "--dir", "$Root\app\res", "-o", "$Build\res.zip")
+
+# 소스 매니페스트에는 package 속성이 없다. AGP 8이 build.gradle의 namespace로 대체했고,
+# 매니페스트에 남겨 두면 무시되는 죽은 선언이 된다. 하지만 aapt2를 직접 부르는 이 경로에는
+# 그걸 채워 주는 gradle이 없다 (--rename-manifest-package는 이름을 바꿀 뿐, 없는 속성을
+# 만들지는 못한다). 그래서 gradle이 하는 일을 여기서 그대로 한다: 빌드 폴더에 package를
+# 주입한 사본을 만들어 그걸로 링크한다. 저장소의 매니페스트는 건드리지 않는다.
+$LinkManifest = Join-Path $Build "AndroidManifest.xml"
+$ManifestXml = Get-Content (Join-Path $Root "app\AndroidManifest.xml") -Raw
+$Injected = [regex]::Replace($ManifestXml, '<manifest\s', "<manifest package=`"$Namespace`" ", 1)
+if ($Injected -eq $ManifestXml) { throw "매니페스트에 package를 주입하지 못했습니다." }
+Set-Content -LiteralPath $LinkManifest -Value $Injected -Encoding utf8
+
 Run $Aapt2 @("link",
     "-o", "$Build\base.apk",
     "-I", $Platform,
-    "--manifest", "$Root\app\AndroidManifest.xml",
+    "--manifest", $LinkManifest,
     "--java", "$Build\gen",
     "--min-sdk-version", "$MinSdk",
     "--target-sdk-version", "$TargetSdk",

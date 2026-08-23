@@ -18,4 +18,24 @@ jobs:
           java-version: '21'
           cache: gradle
       - uses: gradle/actions/setup-gradle@v4
-      - run: ./gradlew --no-daemon assembleDebug
+
+      # 순수 로직(격자 추론, 마이그레이션, 연속 기록, 백업 검증) 회귀 방지
+      - name: Unit tests
+        run: ./gradlew --no-daemon testDebugUnitTest
+
+      # lint를 물려 두지 않으면 마감 경고가 다시 쌓인다
+      - name: Lint
+        run: ./gradlew --no-daemon lintDebug
+
+      - name: Assemble debug APK
+        run: ./gradlew --no-daemon assembleDebug
+
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports
+          path: |
+            app/build/reports/tests/
+            app/build/reports/lint-results-debug.html
+          if-no-files-found: ignore

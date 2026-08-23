@@ -1,0 +1,19 @@
+# 저장소 안에서는 항상 LF로 보관한다.
+# 윈도우에서 개발하고 리눅스 CI에서 빌드하는 구성이라, 이걸 고정해 두지 않으면
+# 편집 도구에 따라 줄바꿈이 바뀌면서 "파일 전체가 바뀐" diff가 나온다.
+* text=auto eol=lf
+
+# gradlew는 리눅스 CI가 실행하는 셸 스크립트라 반드시 LF여야 한다.
+gradlew text eol=lf
+
+# 윈도우에서만 실행되는 스크립트는 CRLF로 둔다.
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+
+# 바이너리는 손대지 않는다.
+*.jar binary
+*.keystore binary
+*.jks binary
+*.png binary
+*.apk binary
+*.aab binary

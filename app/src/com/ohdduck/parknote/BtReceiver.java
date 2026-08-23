@@ -40,7 +40,7 @@ public class BtReceiver extends BroadcastReceiver {
         JSONObject vehicle = Store.vehicleMatchingBluetooth(ctx, name);
         if (vehicle == null) return;
         String vehicleId = vehicle.optString("id");
-        String car = vehicle.optString("n", "차량");
+        String car = vehicle.optString("n", ctx.getString(R.string.vehicle_default_name));
 
         NotificationManager nm =
                 (NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
@@ -54,7 +54,8 @@ public class BtReceiver extends BroadcastReceiver {
         String brand = ctx.getString(R.string.app_name);
         // 같은 ID로 다시 등록하면 기존 채널의 사용자 설정은 유지하면서 이름만 최신화된다.
         nm.createNotificationChannel(new NotificationChannel(
-                Store.CHANNEL, brand + " · 위치 기록", NotificationManager.IMPORTANCE_HIGH));
+                Store.CHANNEL, ctx.getString(R.string.bt_channel, brand),
+                NotificationManager.IMPORTANCE_HIGH));
 
         // 위치를 알면 그 주차장 기준으로 묻고, 모르는 곳이면 조용한 채널로 내린다.
         // 판정에 실패했을 때는 평소대로 알린다 — 놓치는 쪽이 훨씬 손해다.
@@ -66,7 +67,8 @@ public class BtReceiver extends BroadcastReceiver {
         if (!where.shouldAlert()) {
             channel = Store.CHANNEL_QUIET;
             nm.createNotificationChannel(new NotificationChannel(
-                    channel, brand + " · 조용한 위치 기록", NotificationManager.IMPORTANCE_LOW));
+                    channel, ctx.getString(R.string.bt_channel_quiet, brand),
+                    NotificationManager.IMPORTANCE_LOW));
         }
         String profileName = Store.profileName(ctx, profileId);
         Intent openIntent = new Intent(ctx, MainActivity.class)
@@ -79,10 +81,10 @@ public class BtReceiver extends BroadcastReceiver {
 
         Notification.Builder nb = new Notification.Builder(ctx, channel)
                 .setSmallIcon(R.drawable.ic_notif)
-                .setContentTitle(brand + " · " + car)
+                .setContentTitle(ctx.getString(R.string.bt_notification_title, brand, car))
                 .setContentText(where.shouldAlert()
-                        ? profileName + "에 댄 곳을 남겨둘까요?"
-                        : "등록한 주차장이 아니에요. 남겨둘까요?")
+                        ? ctx.getString(R.string.bt_notification_known, profileName)
+                        : ctx.getString(R.string.bt_notification_elsewhere))
                 .setContentIntent(open)
                 .setAutoCancel(true);
 

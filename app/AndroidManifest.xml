@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.ohdduck.parknote">
+<!-- 패키지 이름은 app/build.gradle의 namespace가 정한다.
+     매니페스트의 package 속성은 AGP 8부터 무시되므로 두지 않는다. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!-- 차량 블루투스 끊김 감지 (기기 이름 읽기) -->
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
@@ -10,10 +11,15 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- 재부팅 후 알람 재예약 -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
     <!-- 차에서 내린 곳이 등록한 주차장인지 판정해 알림 세기를 조절한다 (기본 꺼짐).
          좌표는 기기 안에서만 쓰고 어디로도 보내지 않는다. 블루투스 끊김은 브로드캐스트
          수신이라 앱이 백그라운드로 취급돼 ACCESS_BACKGROUND_LOCATION이 필요하다.
-         Google Play에 올릴 때는 이 두 줄을 빼고 Nearby가 항상 unknown을 돌려주게 두면 된다. -->
+
+         COARSE는 선택이 아니라 필수다. Android 12부터 FINE만 단독으로 요청하면
+         시스템이 다이얼로그도 띄우지 않고 요청 자체를 무시한다. 판정 반경이 300m라
+         실제로는 COARSE만 허용돼도 기능은 정상 동작한다. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
     <uses-feature
@@ -28,7 +34,10 @@
         android:label="@string/app_name"
         android:icon="@mipmap/ic_launcher"
         android:theme="@style/AppTheme"
-        android:allowBackup="false">
+        android:supportsRtl="false"
+        android:allowBackup="false"
+        android:fullBackupContent="@xml/backup_rules"
+        android:dataExtractionRules="@xml/data_extraction_rules">
 
         <activity
             android:name=".MainActivity"
@@ -43,6 +52,14 @@
         <activity
             android:name=".OnboardingActivity"
             android:exported="false" />
+
+        <!-- 구역 편집. 앱에서 입력량이 가장 많은 화면이라 다이얼로그가 아니라 액티비티다.
+             회전해도 입력 중이던 내용이 프레임워크에 의해 그대로 보존된다. -->
+        <activity
+            android:name=".ZoneSettingsActivity"
+            android:exported="false"
+            android:label="@string/zone_edit"
+            android:windowSoftInputMode="adjustResize" />
 
         <!-- 홈 화면 위젯 -->
         <receiver
@@ -67,13 +84,17 @@
             </intent-filter>
         </receiver>
 
-        <!-- 습관 리마인더 알람 + 부팅 후 재예약.
-             알람 PendingIntent(자기 앱)와 BOOT_COMPLETED(시스템)는 비공개여도 수신됨 -->
+        <!-- 습관 리마인더 알람 + 알람이 사라지는 두 시점의 재예약.
+             알람 PendingIntent(자기 앱)와 시스템 브로드캐스트는 비공개여도 수신된다.
+
+             MY_PACKAGE_REPLACED가 없으면 스토어 업데이트 때마다 예약된 출차 알림과
+             습관 리마인더가 통째로 사라진다. 앱을 다시 열기 전까지 복구되지 않는다. -->
         <receiver
             android:name=".ReminderReceiver"
             android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
 

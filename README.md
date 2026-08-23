@@ -1,7 +1,7 @@
 # 아맞다주차!
 
 "아, 맞다! 어디 댔더라?" 하는 순간을 위해, 주차하고 나오면서 버튼 한 번으로 위치를 기억해 두는 개인용 안드로이드 앱.
-외부 라이브러리 0개, APK 약 57KB. 내 폰에만 설치해서 쓰는 용도.
+외부 라이브러리 0개, APK 약 97KB. 내 폰에만 설치해서 쓰는 용도.
 
 ## 기능 (v3.1)
 
@@ -23,11 +23,12 @@
   - 층 최대 8개 × 구역 최대 8개
 - **주차장 프로필**: 우리 집·회사·부모님 댁처럼 주차장을 최대 6개까지 만들고, 상단 이름을 탭해 전환
 - **프로필별 격자**: 각 주차장마다 층·구역·기타 구역을 별도로 설정
-- **구역 편집**: 격자 위 **구역 편집**을 탭해 한 줄에 하나씩 층·구역 이름 수정
-- **기타 구역**: 기본 B4-A ~ B5-B, 작은 버튼으로 표시 (원하면 모두 숨김)
+- **구역 편집**: 격자 위 **구역 편집**을 탭해 한 줄에 하나씩 층·구역 이름 수정.
+  입력하는 대로 격자 미리보기가 갱신되고, 화면을 돌려도 입력 중이던 내용이 남는다
+- **기타 구역**: 격자 밖의 자리를 작은 버튼으로 표시 (기본은 비어 있음 — 필요할 때만 채운다)
 - **직접 위치 입력**: 타 주차장은 주관식으로 위치 저장
 - **지금 주차한 곳 카드**: 마지막 기록 구역 + 정확한 시각 + "n분/시간 전" 상대 시각 (화면 켜둔 동안 매분 자동 갱신)
-- **최근에 댄 곳**: 현재 주차장·차량의 최근 5개 목록 표시
+- **최근에 댄 곳**: 현재 주차장·차량의 최근 5개 목록 표시, 아래 줄에서 전체 기록으로 바로 이동
 - **전체 주차 기록**: 설정에서 모든 기록을 열어, 삭제한 주차장/차량에 속한 기록도 확인·수정·삭제
 - **기록 수정·메모**: 지금 주차한 곳의 **수정** 또는 최근 항목을 탭해 구역·주차장·차량·시각·메모 수정
 - **출차 시간 알림**: 지금 주차한 곳 카드에서 30분/1시간/2시간 뒤 또는 원하는 시각으로 알림 설정
@@ -93,6 +94,17 @@ powershell -ExecutionPolicy Bypass -File build.ps1
 결과물: `dist\AMatdaParking.apk`
 
 `build.ps1`은 Android SDK 도구(aapt2 → javac → R8 → zipalign → apksigner)로 직접 설치할 APK를 만든다.
+버전·SDK·패키지 이름은 전부 `app/build.gradle`에서 읽으므로 두 빌드 경로가 어긋나지 않는다.
+
+### 테스트와 검사
+
+```powershell
+.\gradlew.bat testDebugUnitTest lintDebug assembleDebug
+```
+
+유닛 테스트는 에뮬레이터 없이 JVM에서 돈다. 격자 역추론(`inferGrid`), 평면 목록 마이그레이션,
+습관 연속 기록, 시각 표시, 백업 파일 검증을 덮는다 — 깨지면 기존 사용자의 데이터가 날아가는 자리들이다.
+CI(`.github/workflows/android.yml`)에서 셋 다 돌린다.
 
 ### Google Play용 서명 AAB
 
@@ -135,7 +147,8 @@ R8 유지 규칙은 `rules.pro`에 있다 (새 Activity/Receiver를 추가하면
 ## 주의
 
 - **`debug.keystore`는 개인 서명 키다.** Git에 올리거나 공유하지 말고 안전한 곳에 백업한다. 키가 바뀌면 앱을 지웠다 다시 깔아야 하는데, 그 전에 **설정 → 백업 · 복원 → 파일로 내보내기**를 해 두면 기록을 그대로 되살릴 수 있다.
-- 업데이트 버전을 만들 때는 `build.ps1`의 `$VersionCode`를 1 올리고 다시 빌드 → 폰에서 덮어서 설치 (기록 유지됨).
+- 업데이트 버전을 만들 때는 `app/build.gradle`의 `versionCode`를 1 올리고 다시 빌드 → 폰에서 덮어서 설치 (기록 유지됨).
+  `build.ps1`도 이 값을 읽으므로 두 곳을 맞출 필요가 없다.
 
 ## 구조
 
@@ -143,11 +156,20 @@ R8 유지 규칙은 `rules.pro`에 있다 (새 Activity/Receiver를 추가하면
 app/
   AndroidManifest.xml
   src/com/ohdduck/parknote/  # 기존 설치 업데이트 호환성을 위한 내부 패키지
-    MainActivity.java        # 앱 화면 (프로필·차량·구역·기록·체크)
+    MainActivity.java        # 메인 화면 그리기 (격자·상태 카드·체크·최근 기록)
     OnboardingActivity.java  # 첫 실행 4단계 안내 (주차장·격자·차량·권한)
-    ZoneGrid.java            # 층 × 구역 격자 렌더링 (메인·온보딩 공용)
+    ZoneSettingsActivity.java# 층·구역·기타 구역 편집 + 미리보기
+    ScreenHost.java          # 다이얼로그 → 화면 갱신 통로
+    Ui.java                  # 폼·다이얼로그 공용 조각 (입력 필드 스타일 한 곳)
+    RecordEditor.java        # 주차 기록 수정 + 주차장/차량/시각/출차 알림 선택
+    ProfileDialogs.java      # 주차장 전환·추가·이름 변경·삭제
+    VehicleDialogs.java      # 차량 전환·추가·정보 수정·삭제
+    HabitDialogs.java        # 체크 항목 추가·리마인더·삭제
+    BackupFlow.java          # 백업 내보내기·가져오기 흐름 (파일 I/O는 워커 스레드)
+    LocationFilterDialogs.java # 위치로 알림 조절 설정·권한 요청
+    ZoneGrid.java            # 층 × 구역 격자 렌더링 (메인·온보딩·구역 편집 공용)
     BtPicker.java            # 페어링된 기기 목록에서 차 블루투스 선택
-    Backup.java              # 기록 전체를 JSON 파일로 내보내기·가져오기
+    Backup.java              # 기록 전체를 JSON 파일로 읽고 쓰기 (문구 없이 결과만)
     Nearby.java              # 위치로 주차장 판정 (위치 관련 코드는 전부 여기)
     Store.java               # 주차장 프로필·차량·주차/습관 데이터 및 이전 데이터 이관
     ParkWidgetProvider.java  # 홈 화면 위젯
@@ -155,10 +177,12 @@ app/
     ParkingTimers.java       # 기록별 출차 알림 예약/해제
     ParkingTimerReceiver.java# 출차 알림 수신·표시
     Reminders.java           # 습관 리마인더 알람 예약
-    ReminderReceiver.java    # 알람 수신 → 미체크 시 알림, 부팅 후 재예약
+    ReminderReceiver.java    # 알람 수신 → 미체크 시 알림, 부팅·앱 업데이트 후 재예약
     ParkTileService.java     # 퀵설정 타일
+  res/values/strings.xml     # 사용자에게 보이는 문구 전부 (281개)
   res/                       # 레이아웃, 위젯, 색, 아이콘
-build.ps1                    # 원커맨드 빌드 스크립트
+  test/com/ohdduck/parknote/ # JVM 유닛 테스트 (격자 추론·마이그레이션·연속 기록·백업 검증)
+build.ps1                    # 원커맨드 빌드 스크립트 (버전은 app/build.gradle에서 읽음)
 build-release.ps1            # 업로드 키로 Google Play용 AAB 생성
 app/build.gradle             # 출시 서명·AAB를 위한 Gradle 설정
 docs/                        # Play Console·스토어·개인정보·테스트 자료
@@ -167,7 +191,8 @@ rules.pro                    # R8 유지 규칙 (새 컴포넌트 추가 시 -ke
 
 데이터는 SharedPreferences에 저장:
 
-- 새 주차 기록: `history` = `[{id, c: 차량ID, cn: 차량명, p: 주차장ID, pn: 주차장명, z, t, m: 메모?, due: 출차알림시각?}]` (최근 40개)
+- 새 주차 기록: `history` = `[{id, c: 차량ID, cn: 차량명, p: 주차장ID, pn: 주차장명, z, t, m: 메모?, due: 출차알림시각?}]`
+  (주차장×차량 맥락마다 20개, 전체 240개까지. 전역 40개였을 때는 차를 두 대 쓰면 한쪽 기록이 다른 쪽을 밀어냈다)
 - 습관: `habits` = `[{n: 이름, r: 리마인더(0시 기준 분, -1=없음), days: ["yyyy-MM-dd" 최신순], lt: 오늘 체크 시각}]`
 - 설정: `parking_profiles_v1` = `[{id, n, rows: 층[], cols: 구역[], sep, etc: 기타구역[], lat?, lon?, rad?}]`,
   `parking_vehicles_v1` = 차량별 블루투스 이름, `onboarded` = 첫 실행 안내 완료 여부,

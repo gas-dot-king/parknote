@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -31,7 +32,7 @@
                 android:contentDescription="@null"
                 android:fontFamily="sans-serif-black"
                 android:gravity="center"
-                android:text="!"
+                android:text="@string/brand_mark"
                 android:textColor="@color/on_accent"
                 android:textSize="25sp" />
 
@@ -67,7 +68,10 @@
             android:layout_height="wrap_content"
             android:background="@drawable/bg_card"
             android:orientation="vertical"
-            android:padding="20dp">
+            android:paddingLeft="20dp"
+            android:paddingTop="16dp"
+            android:paddingRight="20dp"
+            android:paddingBottom="20dp">
 
             <TextView
                 android:layout_width="wrap_content"
@@ -84,74 +88,76 @@
                 android:gravity="center_vertical"
                 android:orientation="horizontal">
 
+                <!-- 버튼 바가 아니라 카드 머리글 줄이다. borderless 제안은 해당 없음. -->
                 <Button
                     android:id="@+id/btnProfile"
+                    tools:ignore="ButtonStyle"
                     android:layout_width="0dp"
                     android:layout_height="48dp"
                     android:layout_weight="1"
                     android:minWidth="0dp"
                     android:background="?android:attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="@string/cd_switch_profile"
                     android:gravity="center_vertical|start"
                     android:fontFamily="sans-serif"
                     android:ellipsize="end"
+                    android:stateListAnimator="@null"
                     android:text="@string/current_label"
                     android:textAllCaps="false"
                     android:textColor="@color/subtext"
                     android:textSize="13sp"
                     android:singleLine="true" />
 
-                <TextView
+                <!-- 아래 세 개는 InlineAction 스타일로 48dp 터치 타깃을 보장한다. -->
+                <Button
                     android:id="@+id/btnEdit"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:fontFamily="sans-serif"
-                    android:padding="4dp"
+                    style="@style/InlineAction"
+                    android:contentDescription="@string/cd_edit_record"
                     android:text="@string/edit"
-                    android:textColor="@color/subtext"
-                    android:textSize="13sp" />
+                    android:textColor="@color/subtext" />
 
-                <TextView
+                <Button
                     android:id="@+id/btnDelete"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:fontFamily="sans-serif"
-                    android:padding="4dp"
+                    style="@style/InlineAction"
+                    android:contentDescription="@string/cd_delete_record"
                     android:text="@string/delete"
-                    android:textColor="@color/subtext"
-                    android:textSize="13sp" />
+                    android:textColor="@color/subtext" />
 
                 <Button
                     android:id="@+id/btnSettings"
-                    android:layout_width="wrap_content"
-                    android:layout_height="48dp"
-                    android:minWidth="48dp"
-                    android:background="?android:attr/selectableItemBackgroundBorderless"
-                    android:gravity="center"
-                    android:fontFamily="sans-serif"
-                    android:paddingLeft="8dp"
-                    android:paddingRight="8dp"
-                    android:stateListAnimator="@null"
+                    style="@style/InlineAction"
                     android:text="@string/settings"
-                    android:textAllCaps="false"
-                    android:textColor="@color/accent_text"
-                    android:textSize="13sp" />
+                    android:textColor="@color/accent_text" />
             </LinearLayout>
 
+            <!--
+              직접 입력한 긴 위치("롯데몰 B2 F기둥")가 들어와도 카드가 밀리지 않게
+              두 줄로 제한하고, 길이에 따라 글자 크기를 32sp → 20sp로 줄인다.
+              maxLines만 걸면 정보가 잘려 나가므로 자동 축소를 먼저 쓴다.
+            -->
             <TextView
                 android:id="@+id/statusZone"
-                android:layout_width="wrap_content"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
+                android:autoSizeTextType="uniform"
+                android:autoSizeMinTextSize="20sp"
+                android:autoSizeMaxTextSize="32sp"
+                android:autoSizeStepGranularity="1sp"
+                android:ellipsize="end"
                 android:fontFamily="sans-serif-medium"
+                android:maxLines="2"
                 android:textColor="@color/accent_text"
                 android:textSize="32sp" />
 
             <TextView
                 android:id="@+id/statusTime"
-                android:layout_width="wrap_content"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="2dp"
+                android:ellipsize="end"
                 android:fontFamily="sans-serif"
+                android:maxLines="1"
                 android:textColor="@color/subtext"
                 android:textSize="13sp" />
 
@@ -162,7 +168,7 @@
                 android:layout_marginTop="4dp"
                 android:ellipsize="end"
                 android:fontFamily="sans-serif"
-                android:maxLines="2"
+                android:maxLines="3"
                 android:textColor="@color/subtext"
                 android:textSize="13sp"
                 android:visibility="gone" />
@@ -170,12 +176,12 @@
             <Button
                 android:id="@+id/btnTimer"
                 android:layout_width="wrap_content"
-                android:layout_height="40dp"
-                android:layout_marginTop="8dp"
+                android:layout_height="44dp"
+                android:layout_marginTop="10dp"
                 android:background="@drawable/bg_button"
                 android:fontFamily="sans-serif"
-                android:paddingLeft="12dp"
-                android:paddingRight="12dp"
+                android:paddingLeft="14dp"
+                android:paddingRight="14dp"
                 android:stateListAnimator="@null"
                 android:text="@string/parking_timer"
                 android:textAllCaps="false"
@@ -189,7 +195,7 @@
             android:layout_height="wrap_content"
             android:layout_marginLeft="4dp"
             android:layout_marginRight="4dp"
-            android:layout_marginTop="18dp"
+            android:layout_marginTop="14dp"
             android:gravity="center_vertical"
             android:orientation="horizontal">
 
@@ -202,15 +208,11 @@
                 android:textColor="@color/subtext"
                 android:textSize="13sp" />
 
-            <TextView
+            <Button
                 android:id="@+id/btnEditZones"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:fontFamily="sans-serif"
-                android:padding="4dp"
+                style="@style/InlineAction"
                 android:text="@string/zone_edit"
-                android:textColor="@color/accent_text"
-                android:textSize="13sp" />
+                android:textColor="@color/accent_text" />
         </LinearLayout>
 
         <LinearLayout
@@ -230,7 +232,7 @@
         <Button
             android:id="@+id/btnCustom"
             android:layout_width="match_parent"
-            android:layout_height="44dp"
+            android:layout_height="48dp"
             android:layout_marginLeft="4dp"
             android:layout_marginRight="4dp"
             android:layout_marginTop="4dp"
@@ -247,7 +249,8 @@
             android:layout_height="wrap_content"
             android:layout_marginLeft="4dp"
             android:layout_marginRight="4dp"
-            android:layout_marginTop="20dp"
+            android:layout_marginTop="16dp"
+            android:gravity="center_vertical"
             android:orientation="horizontal">
 
             <TextView
@@ -259,15 +262,12 @@
                 android:textColor="@color/subtext"
                 android:textSize="13sp" />
 
-            <TextView
+            <Button
                 android:id="@+id/btnAddHabit"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:fontFamily="sans-serif"
-                android:padding="4dp"
+                style="@style/InlineAction"
+                android:contentDescription="@string/cd_add_habit"
                 android:text="@string/add"
-                android:textColor="@color/accent_text"
-                android:textSize="13sp" />
+                android:textColor="@color/accent_text" />
         </LinearLayout>
 
         <LinearLayout

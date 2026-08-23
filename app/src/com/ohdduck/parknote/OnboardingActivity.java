@@ -9,7 +9,6 @@ import android.graphics.Typeface;
 import android.os.Build;
 import android.os.Bundle;
 import android.text.Editable;
-import android.text.InputType;
 import android.text.TextWatcher;
 import android.view.Gravity;
 import android.view.View;
@@ -40,11 +39,11 @@ public class OnboardingActivity extends Activity {
     }
 
     private int step;
-    private String profileName = "우리 집";
+    private String profileName;
     private boolean useFloors = true;
     private int floorCount = 3;
     private int zoneCount = 2;
-    private String vehicleName = "내 차";
+    private String vehicleName;
     private String btName = "";
 
     private TextView btValue;
@@ -52,6 +51,8 @@ public class OnboardingActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        profileName = getString(R.string.onboarding_default_profile);
+        vehicleName = getString(R.string.onboarding_default_vehicle);
         // 화면을 돌렸다고 설정을 처음부터 다시 하게 만들지 않는다.
         if (savedInstanceState != null) {
             step = savedInstanceState.getInt("step", step);
@@ -63,6 +64,27 @@ public class OnboardingActivity extends Activity {
             btName = savedInstanceState.getString("btName", btName);
         }
         render();
+    }
+
+    /**
+     * 시스템 뒤로 가기를 화면 안의 "이전 / 건너뛰기"와 똑같이 다룬다.
+     *
+     * <p>기본 동작대로 두면 2단계에서 뒤로 간 사용자가 액티비티를 끝내 앱을 닫게 되고,
+     * 온보딩 완료 플래그가 저장되지 않아 다음 실행에 STEP 1부터 다시 시작한다.
+     *
+     * <p>매니페스트에서 enableOnBackInvokedCallback을 켜지 않았으므로 targetSdk 35에서도
+     * 이 콜백이 그대로 호출된다. AndroidX 없이 프레임워크 Activity만 쓰는 구성이라
+     * OnBackPressedDispatcher는 쓸 수 없다.
+     */
+    @Override
+    @SuppressWarnings("deprecation")
+    public void onBackPressed() {
+        if (step > 0) {
+            step--;
+            render();
+            return;
+        }
+        confirmSkip();
     }
 
     @Override
@@ -85,7 +107,7 @@ public class OnboardingActivity extends Activity {
         page.setBackgroundColor(getColor(R.color.bg));
         page.setPadding(dp(24), dp(28), dp(24), dp(20));
 
-        page.addView(text("STEP " + (step + 1) + " / " + (LAST_STEP + 1), 12,
+        page.addView(text(getString(R.string.onboarding_step, step + 1, LAST_STEP + 1), 12,
                 R.color.accent_text, true));
 
         LinearLayout body = new LinearLayout(this);
@@ -116,27 +138,31 @@ public class OnboardingActivity extends Activity {
     }
 
     private void buildProfileStep(LinearLayout body) {
-        body.addView(text("어디에 주차하세요?", 26, R.color.text, true));
-        body.addView(gap(text("자주 대는 주차장 이름이에요. 나중에 회사·부모님 댁처럼 "
-                + "더 추가할 수 있어요.", 14, R.color.subtext, false), 8));
+        body.addView(text(getString(R.string.onboarding_profile_title),
+                26, R.color.text, true));
+        body.addView(gap(text(getString(R.string.onboarding_profile_body),
+                14, R.color.subtext, false), 8));
 
-        EditText input = field(profileName, "예: 우리 집");
+        EditText input = field(profileName, getString(R.string.onboarding_profile_hint));
         input.addTextChangedListener(new SimpleWatcher(value -> profileName = value));
         body.addView(gap(input, 24));
     }
 
     private void buildGridStep(LinearLayout body) {
-        body.addView(text("주차장이 어떻게 나뉘어 있나요?", 26, R.color.text, true));
-        body.addView(gap(text("층만 기억해선 못 찾는 곳이라면 구역까지 나눠 두세요.",
+        body.addView(text(getString(R.string.onboarding_grid_title),
+                26, R.color.text, true));
+        body.addView(gap(text(getString(R.string.onboarding_grid_body),
                 14, R.color.subtext, false), 8));
 
         LinearLayout choice = new LinearLayout(this);
         choice.setOrientation(LinearLayout.HORIZONTAL);
-        choice.addView(choiceButton("층 + 구역\nB2-C", useFloors, () -> {
+        choice.addView(choiceButton(getString(R.string.onboarding_grid_floors_zones),
+                useFloors, () -> {
             useFloors = true;
             render();
         }));
-        choice.addView(choiceButton("층만\nB2", !useFloors, () -> {
+        choice.addView(choiceButton(getString(R.string.onboarding_grid_floors_only),
+                !useFloors, () -> {
             useFloors = false;
             if (floorCount < 2) floorCount = 2;
             render();
@@ -144,14 +170,16 @@ public class OnboardingActivity extends Activity {
         body.addView(gap(choice, 16));
 
         // 층만 쓰는 경우 층이 곧 버튼이므로 최소 2개는 있어야 고를 의미가 있다.
-        body.addView(gap(stepper("지하 몇 층까지 있나요?", floorCount, useFloors ? 1 : 2,
+        body.addView(gap(stepper(getString(R.string.onboarding_grid_floor_count),
+                floorCount, useFloors ? 1 : 2,
                 Store.MAX_ROWS,
                 value -> {
                     floorCount = value;
                     render();
                 }), 16));
         if (useFloors) {
-            body.addView(gap(stepper("한 층에 구역이 몇 개인가요?", zoneCount, 2, Store.MAX_COLS,
+            body.addView(gap(stepper(getString(R.string.onboarding_grid_zone_count),
+                    zoneCount, 2, Store.MAX_COLS,
                     value -> {
                         zoneCount = value;
                         render();
@@ -160,50 +188,54 @@ public class OnboardingActivity extends Activity {
 
         String[] rows = gridRows();
         String[] cols = gridCols();
-        body.addView(gap(text("미리보기", 12, R.color.subtext, true), 20));
+        body.addView(gap(text(getString(R.string.zone_preview),
+                12, R.color.subtext, true), 20));
         LinearLayout preview = new LinearLayout(this);
         preview.setOrientation(LinearLayout.VERTICAL);
         ZoneGrid.build(this, preview, rows, cols, Store.DEFAULT_SEP, true, null);
         body.addView(gap(preview, 6));
 
         String[] zones = Store.flatten(rows, cols, Store.DEFAULT_SEP);
-        String sample = zones.length == 0 ? "" : " · 예: " + zones[0] + " 처럼 저장돼요";
-        body.addView(gap(text("버튼 " + zones.length + "개" + sample + "\n"
-                + "이름은 설정에서 언제든 바꿀 수 있어요.", 13, R.color.subtext, false), 8));
+        String summary = zones.length == 0
+                ? getString(R.string.onboarding_grid_sample_empty, 0)
+                : getString(R.string.onboarding_grid_sample, zones.length, zones[0]);
+        body.addView(gap(text(summary, 13, R.color.subtext, false), 8));
     }
 
     private void buildVehicleStep(LinearLayout body) {
-        body.addView(text("어떤 차를 타세요?", 26, R.color.text, true));
-        body.addView(gap(text("차 블루투스가 끊기면 = 차에서 내리면, 주차 위치를 남길지 "
-                + "알림으로 물어봐요.", 14, R.color.subtext, false), 8));
+        body.addView(text(getString(R.string.onboarding_vehicle_title),
+                26, R.color.text, true));
+        body.addView(gap(text(getString(R.string.onboarding_vehicle_body),
+                14, R.color.subtext, false), 8));
 
-        EditText input = field(vehicleName, "예: 내 차, 아빠 차");
+        EditText input = field(vehicleName, getString(R.string.onboarding_vehicle_hint));
         input.addTextChangedListener(new SimpleWatcher(value -> vehicleName = value));
         body.addView(gap(input, 20));
 
-        body.addView(gap(text("차 블루투스", 13, R.color.subtext, true), 16));
+        body.addView(gap(text(getString(R.string.onboarding_bt_label),
+                13, R.color.subtext, true), 16));
         btValue = text(btLabel(), 15, R.color.text, false);
         btValue.setBackgroundResource(R.drawable.bg_button);
         btValue.setPadding(dp(14), dp(14), dp(14), dp(14));
         btValue.setOnClickListener(v -> pickBluetoothDevice());
         body.addView(gap(btValue, 4));
 
-        body.addView(gap(text("탭하면 페어링된 기기 목록에서 고를 수 있어요. "
-                + "지금 차에 안 타고 있다면 비워 두고 나중에 설정에서 골라도 돼요.",
+        body.addView(gap(text(getString(R.string.onboarding_bt_body),
                 13, R.color.subtext, false), 8));
     }
 
     private void buildPermissionStep(LinearLayout body) {
-        body.addView(text("마지막이에요", 26, R.color.text, true));
-        body.addView(gap(text("아래 권한만 쓰고, 어떤 정보도 기기 밖으로 내보내지 않아요.",
+        body.addView(text(getString(R.string.onboarding_perm_title),
+                26, R.color.text, true));
+        body.addView(gap(text(getString(R.string.onboarding_perm_body),
                 14, R.color.subtext, false), 8));
 
-        body.addView(gap(permissionRow("알림",
-                "주차 위치를 남길지 묻고, 출차 시간을 알려 줘요."), 20));
-        body.addView(gap(permissionRow("근처 기기 (블루투스)",
-                "차 블루투스가 끊기는 순간만 감지해요. 위치 추적은 하지 않아요."), 12));
+        body.addView(gap(permissionRow(getString(R.string.onboarding_perm_notify),
+                getString(R.string.onboarding_perm_notify_detail)), 20));
+        body.addView(gap(permissionRow(getString(R.string.onboarding_perm_bt),
+                getString(R.string.onboarding_perm_bt_detail)), 12));
 
-        body.addView(gap(text("상주 알림이나 배터리 최적화 해제는 요구하지 않아요.",
+        body.addView(gap(text(getString(R.string.onboarding_perm_note),
                 13, R.color.accent_text, false), 20));
     }
 
@@ -226,8 +258,10 @@ public class OnboardingActivity extends Activity {
         navLp.topMargin = dp(12);
         nav.setLayoutParams(navLp);
 
-        TextView back = text(step == 0 ? "건너뛰기" : "이전", 14, R.color.subtext, false);
-        back.setPadding(dp(4), dp(12), dp(16), dp(12));
+        TextView back = text(getString(step == 0
+                ? R.string.onboarding_skip : R.string.onboarding_back),
+                14, R.color.subtext, false);
+        back.setPadding(dp(12), dp(14), dp(20), dp(14)); // 48dp 터치 타깃
         back.setOnClickListener(v -> {
             if (step == 0) confirmSkip();
             else {
@@ -242,7 +276,8 @@ public class OnboardingActivity extends Activity {
                 LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
 
         Button next = new Button(this);
-        next.setText(step == LAST_STEP ? "시작하기" : "다음");
+        next.setText(step == LAST_STEP
+                ? R.string.onboarding_start : R.string.onboarding_next);
         next.setAllCaps(false);
         next.setTextSize(15);
         next.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
@@ -276,17 +311,11 @@ public class OnboardingActivity extends Activity {
         return view;
     }
 
+    /** 앱의 다른 폼과 같은 입력 필드를 쓴다 (Ui.input). */
     private EditText field(String value, String hint) {
-        EditText input = new EditText(this);
+        EditText input = Ui.input(this, hint);
         input.setText(value);
-        input.setHint(hint);
-        input.setSingleLine(true);
         input.setTextSize(17);
-        input.setTextColor(getColor(R.color.text));
-        input.setHintTextColor(getColor(R.color.subtext));
-        input.setBackgroundResource(R.drawable.bg_button);
-        input.setPadding(dp(14), dp(14), dp(14), dp(14));
-        input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
         input.setSelection(input.getText().length());
         return input;
     }
@@ -358,7 +387,8 @@ public class OnboardingActivity extends Activity {
 
     private void onNext() {
         if (step == 0 && profileName.trim().isEmpty()) {
-            Toast.makeText(this, "주차장 이름을 입력해 주세요", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, R.string.onboarding_profile_required,
+                    Toast.LENGTH_SHORT).show();
             return;
         }
         if (step < LAST_STEP) {
@@ -371,13 +401,12 @@ public class OnboardingActivity extends Activity {
 
     private void confirmSkip() {
         new AlertDialog.Builder(this)
-                .setMessage("기본 설정(지하 3층 · 구역 2개)으로 시작할까요?\n"
-                        + "설정에서 언제든 바꿀 수 있어요.")
-                .setPositiveButton("이대로 시작", (d, w) -> {
+                .setMessage(R.string.onboarding_skip_confirm)
+                .setPositiveButton(R.string.onboarding_skip_action, (d, w) -> {
                     Store.skipOnboarding(this);
                     openMain();
                 })
-                .setNegativeButton("계속 설정", null)
+                .setNegativeButton(R.string.onboarding_skip_continue, null)
                 .show();
     }
 
@@ -412,8 +441,7 @@ public class OnboardingActivity extends Activity {
         if (results.length > 0 && results[0] == PackageManager.PERMISSION_GRANTED) {
             showBondedDevices();
         } else {
-            Toast.makeText(this, "블루투스 권한이 없으면 기기 목록을 볼 수 없어요",
-                    Toast.LENGTH_LONG).show();
+            Toast.makeText(this, R.string.bt_permission_denied, Toast.LENGTH_LONG).show();
         }
     }
 
@@ -432,7 +460,7 @@ public class OnboardingActivity extends Activity {
     // ---------- 블루투스 ----------
 
     private String btLabel() {
-        return btName.isEmpty() ? "고르지 않음 · 수동 기록만" : btName;
+        return VehicleDialogs.btLabel(this, btName);
     }
 
     private void pickBluetoothDevice() {

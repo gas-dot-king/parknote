@@ -22,8 +22,11 @@ public class ReminderReceiver extends BroadcastReceiver {
     public void onReceive(Context ctx, Intent intent) {
         String action = intent.getAction();
 
-        if (Intent.ACTION_BOOT_COMPLETED.equals(action)) {
-            Reminders.scheduleAll(ctx); // 재부팅하면 알람이 사라지므로 다시 예약
+        // 알람이 통째로 사라지는 두 시점. 재부팅과 패키지 교체(스토어 업데이트, 재설치).
+        // 후자를 빠뜨리면 업데이트가 걸린 사이의 출차 알림이 조용히 오지 않는다.
+        if (Intent.ACTION_BOOT_COMPLETED.equals(action)
+                || Intent.ACTION_MY_PACKAGE_REPLACED.equals(action)) {
+            Reminders.scheduleAll(ctx);
             ParkingTimers.scheduleAll(ctx);
             return;
         }
@@ -57,7 +60,7 @@ public class ReminderReceiver extends BroadcastReceiver {
 
         String brand = ctx.getString(R.string.app_name);
         nm.createNotificationChannel(new NotificationChannel(
-                Store.CHANNEL_HABIT, brand + " · 체크 알림",
+                Store.CHANNEL_HABIT, ctx.getString(R.string.habit_channel, brand),
                 NotificationManager.IMPORTANCE_HIGH));
 
         PendingIntent open = PendingIntent.getActivity(
@@ -75,12 +78,12 @@ public class ReminderReceiver extends BroadcastReceiver {
         Notification n = new Notification.Builder(ctx, Store.CHANNEL_HABIT)
                 .setSmallIcon(R.drawable.ic_notif)
                 .setContentTitle(name)
-                .setContentText(brand + " · 아직 체크하지 않았어요")
+                .setContentText(ctx.getString(R.string.habit_notification_text, brand))
                 .setContentIntent(open)
                 .setAutoCancel(true)
                 .addAction(new Notification.Action.Builder(
                         Icon.createWithResource(ctx, R.drawable.ic_notif),
-                        "지금 체크", checkPi).build())
+                        ctx.getString(R.string.habit_check_now), checkPi).build())
                 .build();
         nm.notify(name, Store.NOTIF_ID_HABIT, n); // 이름을 tag로 → 습관끼리 ID 충돌 없음
     }
