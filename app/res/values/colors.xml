@@ -1,14 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- 야간 아스팔트 + 주차 유도선 노랑 -->
-    <color name="bg">#111315</color>
-    <color name="card">#1B2024</color>
-    <color name="button">#252B30</color>
-    <color name="outline">#384047</color>
-    <color name="accent">#FFD54A</color>
-    <color name="accent_text">#FFE28A</color>
-    <color name="on_accent">#17191B</color>
-    <color name="text">#F5F7F5</color>
-    <color name="subtext">#AAB2B8</color>
-    <color name="icon_bg">#FFD54A</color>
+    <!--
+      Premium dark automotive palette.
+      배경은 3단계 elevation(bg → card → button)으로 깊이를 만들고,
+      accent는 주차 유도선 노랑을 warm gold로 정제했다.
+      border(stroke)를 없애고 색상 차이만으로 계층을 구분한다.
+    -->
+    <color name="bg">#0C0E12</color>
+    <color name="card">#151920</color>
+    <color name="button">#1D222A</color>
+    <color name="outline">#262D36</color>
+    <color name="accent">#F0C030</color>
+    <color name="accent_text">#F5D060</color>
+    <color name="on_accent">#111315</color>
+    <color name="text">#E8EAED</color>
+    <color name="subtext">#808890</color>
+    <color name="icon_bg">#F0C030</color>
 </resources>

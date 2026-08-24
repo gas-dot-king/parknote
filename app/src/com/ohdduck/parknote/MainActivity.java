@@ -594,7 +594,7 @@ public class MainActivity extends Activity implements ScreenHost {
         more.setPadding(dp(14), 0, dp(14), 0);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, dp(48));
-        lp.setMargins(dp(4), dp(3), dp(4), dp(3));
+        lp.setMargins(dp(3), dp(3), dp(3), dp(3));
         more.setLayoutParams(lp);
         more.setBackgroundResource(R.drawable.bg_button);
         more.setOnClickListener(v -> showAllParkingHistory());
@@ -609,7 +609,7 @@ public class MainActivity extends Activity implements ScreenHost {
         row.setBackgroundResource(R.drawable.bg_button);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, height);
-        lp.setMargins(dp(4), dp(3), dp(4), dp(3));
+        lp.setMargins(dp(3), dp(3), dp(3), dp(3));
         row.setLayoutParams(lp);
         return row;
     }

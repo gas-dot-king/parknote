@@ -107,8 +107,10 @@ public class OnboardingActivity extends Activity {
         page.setBackgroundColor(getColor(R.color.bg));
         page.setPadding(dp(24), dp(28), dp(24), dp(20));
 
-        page.addView(text(getString(R.string.onboarding_step, step + 1, LAST_STEP + 1), 12,
-                R.color.accent_text, true));
+        TextView stepLabel = text(getString(R.string.onboarding_step, step + 1, LAST_STEP + 1),
+                11, R.color.subtext, true);
+        stepLabel.setLetterSpacing(0.08f);
+        page.addView(stepLabel);
 
         LinearLayout body = new LinearLayout(this);
         body.setOrientation(LinearLayout.VERTICAL);
@@ -139,9 +141,9 @@ public class OnboardingActivity extends Activity {
 
     private void buildProfileStep(LinearLayout body) {
         body.addView(text(getString(R.string.onboarding_profile_title),
-                26, R.color.text, true));
+                24, R.color.text, true));
         body.addView(gap(text(getString(R.string.onboarding_profile_body),
-                14, R.color.subtext, false), 8));
+                14, R.color.subtext, false), 10));
 
         EditText input = field(profileName, getString(R.string.onboarding_profile_hint));
         input.addTextChangedListener(new SimpleWatcher(value -> profileName = value));
@@ -150,9 +152,9 @@ public class OnboardingActivity extends Activity {
 
     private void buildGridStep(LinearLayout body) {
         body.addView(text(getString(R.string.onboarding_grid_title),
-                26, R.color.text, true));
+                24, R.color.text, true));
         body.addView(gap(text(getString(R.string.onboarding_grid_body),
-                14, R.color.subtext, false), 8));
+                14, R.color.subtext, false), 10));
 
         LinearLayout choice = new LinearLayout(this);
         choice.setOrientation(LinearLayout.HORIZONTAL);
@@ -204,9 +206,9 @@ public class OnboardingActivity extends Activity {
 
     private void buildVehicleStep(LinearLayout body) {
         body.addView(text(getString(R.string.onboarding_vehicle_title),
-                26, R.color.text, true));
+                24, R.color.text, true));
         body.addView(gap(text(getString(R.string.onboarding_vehicle_body),
-                14, R.color.subtext, false), 8));
+                14, R.color.subtext, false), 10));
 
         EditText input = field(vehicleName, getString(R.string.onboarding_vehicle_hint));
         input.addTextChangedListener(new SimpleWatcher(value -> vehicleName = value));
@@ -226,9 +228,9 @@ public class OnboardingActivity extends Activity {
 
     private void buildPermissionStep(LinearLayout body) {
         body.addView(text(getString(R.string.onboarding_perm_title),
-                26, R.color.text, true));
+                24, R.color.text, true));
         body.addView(gap(text(getString(R.string.onboarding_perm_body),
-                14, R.color.subtext, false), 8));
+                14, R.color.subtext, false), 10));
 
         body.addView(gap(permissionRow(getString(R.string.onboarding_perm_notify),
                 getString(R.string.onboarding_perm_notify_detail)), 20));
@@ -286,7 +288,7 @@ public class OnboardingActivity extends Activity {
         next.setStateListAnimator(null);
         next.setPadding(dp(28), 0, dp(28), 0);
         next.setLayoutParams(new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT, dp(50)));
+                LinearLayout.LayoutParams.WRAP_CONTENT, dp(48)));
         next.setOnClickListener(v -> onNext());
         nav.addView(next);
         return nav;

@@ -11,10 +11,10 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:paddingLeft="16dp"
-        android:paddingTop="10dp"
-        android:paddingRight="16dp"
-        android:paddingBottom="12dp">
+        android:paddingLeft="18dp"
+        android:paddingTop="14dp"
+        android:paddingRight="18dp"
+        android:paddingBottom="16dp">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -26,15 +26,15 @@
             android:orientation="horizontal">
 
             <TextView
-                android:layout_width="44dp"
-                android:layout_height="44dp"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
                 android:background="@drawable/bg_brand_badge"
                 android:contentDescription="@null"
                 android:fontFamily="sans-serif-black"
                 android:gravity="center"
                 android:text="@string/brand_mark"
                 android:textColor="@color/on_accent"
-                android:textSize="25sp" />
+                android:textSize="22sp" />
 
             <LinearLayout
                 android:layout_width="0dp"
@@ -47,18 +47,20 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:fontFamily="sans-serif-medium"
+                    android:letterSpacing="-0.02"
                     android:text="@string/app_name"
                     android:textColor="@color/text"
-                    android:textSize="22sp" />
+                    android:textSize="20sp" />
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="1dp"
                     android:fontFamily="sans-serif"
+                    android:letterSpacing="0.02"
                     android:text="@string/brand_tagline"
                     android:textColor="@color/accent_text"
-                    android:textSize="13sp" />
+                    android:textSize="12sp" />
             </LinearLayout>
         </LinearLayout>
 
@@ -68,18 +70,20 @@
             android:layout_height="wrap_content"
             android:background="@drawable/bg_card"
             android:orientation="vertical"
-            android:paddingLeft="20dp"
-            android:paddingTop="16dp"
-            android:paddingRight="20dp"
-            android:paddingBottom="20dp">
+            android:paddingLeft="22dp"
+            android:paddingTop="18dp"
+            android:paddingRight="22dp"
+            android:paddingBottom="22dp">
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:fontFamily="sans-serif-medium"
+                android:letterSpacing="0.06"
                 android:text="@string/current_label"
-                android:textColor="@color/accent_text"
-                android:textSize="12sp" />
+                android:textAllCaps="true"
+                android:textColor="@color/subtext"
+                android:textSize="11sp" />
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -139,16 +143,17 @@
                 android:id="@+id/statusZone"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
+                android:layout_marginTop="6dp"
                 android:autoSizeTextType="uniform"
-                android:autoSizeMinTextSize="20sp"
-                android:autoSizeMaxTextSize="32sp"
+                android:autoSizeMinTextSize="22sp"
+                android:autoSizeMaxTextSize="38sp"
                 android:autoSizeStepGranularity="1sp"
                 android:ellipsize="end"
                 android:fontFamily="sans-serif-medium"
+                android:letterSpacing="-0.03"
                 android:maxLines="2"
                 android:textColor="@color/accent_text"
-                android:textSize="32sp" />
+                android:textSize="38sp" />
 
             <TextView
                 android:id="@+id/statusTime"
@@ -176,17 +181,17 @@
             <Button
                 android:id="@+id/btnTimer"
                 android:layout_width="wrap_content"
-                android:layout_height="44dp"
-                android:layout_marginTop="10dp"
+                android:layout_height="40dp"
+                android:layout_marginTop="12dp"
                 android:background="@drawable/bg_button"
-                android:fontFamily="sans-serif"
-                android:paddingLeft="14dp"
-                android:paddingRight="14dp"
+                android:fontFamily="sans-serif-medium"
+                android:paddingLeft="16dp"
+                android:paddingRight="16dp"
                 android:stateListAnimator="@null"
                 android:text="@string/parking_timer"
                 android:textAllCaps="false"
                 android:textColor="@color/subtext"
-                android:textSize="13sp"
+                android:textSize="12sp"
                 android:visibility="gone" />
         </LinearLayout>
 
@@ -195,7 +200,7 @@
             android:layout_height="wrap_content"
             android:layout_marginLeft="4dp"
             android:layout_marginRight="4dp"
-            android:layout_marginTop="14dp"
+            android:layout_marginTop="20dp"
             android:gravity="center_vertical"
             android:orientation="horizontal">
 
@@ -203,7 +208,8 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:fontFamily="sans-serif"
+                android:fontFamily="sans-serif-medium"
+                android:letterSpacing="0.01"
                 android:text="@string/zone_prompt"
                 android:textColor="@color/subtext"
                 android:textSize="13sp" />
@@ -235,7 +241,7 @@
             android:layout_height="48dp"
             android:layout_marginLeft="4dp"
             android:layout_marginRight="4dp"
-            android:layout_marginTop="4dp"
+            android:layout_marginTop="6dp"
             android:background="@drawable/bg_button"
             android:fontFamily="sans-serif"
             android:stateListAnimator="@null"
@@ -249,7 +255,7 @@
             android:layout_height="wrap_content"
             android:layout_marginLeft="4dp"
             android:layout_marginRight="4dp"
-            android:layout_marginTop="16dp"
+            android:layout_marginTop="24dp"
             android:gravity="center_vertical"
             android:orientation="horizontal">
 
@@ -257,7 +263,8 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:fontFamily="sans-serif"
+                android:fontFamily="sans-serif-medium"
+                android:letterSpacing="0.01"
                 android:text="@string/habit_title"
                 android:textColor="@color/subtext"
                 android:textSize="13sp" />
@@ -281,8 +288,9 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginLeft="4dp"
-            android:layout_marginTop="20dp"
-            android:fontFamily="sans-serif"
+            android:layout_marginTop="24dp"
+            android:fontFamily="sans-serif-medium"
+            android:letterSpacing="0.01"
             android:text="@string/history_title"
             android:textColor="@color/subtext"
             android:textSize="13sp" />

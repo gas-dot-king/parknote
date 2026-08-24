@@ -164,10 +164,10 @@ class ZoneGrid {
     /** 구역이 많아질수록 칸을 낮춰 한 화면에 격자가 다 들어오게 한다 (dp 단위). */
     private static int cellHeightDp(int cols, boolean grid, boolean compact) {
         if (compact) return cols <= 5 ? 26 : 20;
-        if (!grid) return 64;
-        if (cols <= 3) return 60;
-        if (cols <= 5) return 50;
-        return 42;
+        if (!grid) return 58;
+        if (cols <= 3) return 56;
+        if (cols <= 5) return 48;
+        return 40;
     }
 
     private static int cellTextSize(int cols, boolean grid, boolean compact) {

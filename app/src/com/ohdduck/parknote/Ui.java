@@ -63,11 +63,11 @@ class Ui {
         EditText input = new EditText(c);
         input.setHint(hint);
         input.setSingleLine(true);
-        input.setTextSize(16);
+        input.setTextSize(15);
         input.setTextColor(c.getColor(R.color.text));
         input.setHintTextColor(c.getColor(R.color.subtext));
         input.setBackgroundResource(R.drawable.bg_button);
-        input.setPadding(dp(c, 14), dp(c, 13), dp(c, 14), dp(c, 13));
+        input.setPadding(dp(c, 16), dp(c, 14), dp(c, 16), dp(c, 14));
         input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_SENTENCES);
         return input;
     }
@@ -107,7 +107,7 @@ class Ui {
     static LinearLayout form(Context c) {
         LinearLayout form = new LinearLayout(c);
         form.setOrientation(LinearLayout.VERTICAL);
-        form.setPadding(dp(c, 20), dp(c, 4), dp(c, 20), dp(c, 8));
+        form.setPadding(dp(c, 22), dp(c, 6), dp(c, 22), dp(c, 10));
         return form;
     }
 
