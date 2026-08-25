@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  첫 실행 안내의 껍데기.
+
+  예전에는 이 화면 전체를 자바로 만들고 단계가 바뀔 때마다 setContentView를 다시
+  불렀다. PhoneWindow.setContentView(View)는 FEATURE_CONTENT_TRANSITIONS가 꺼져
+  있을 때만 이전 뷰를 지우는데, 그 기능이 켜진 테마(일부 OEM 스킨)에서는 옛 트리가
+  남은 채 새 트리가 위에 얹혀 화면이 비어 보였다.
+
+  이제 껍데기는 여기서 한 번만 인플레이트하고, 단계가 바뀌면 onboardingBody의
+  자식만 갈아 끼운다.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/onboardingRoot"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:paddingLeft="24dp"
+    android:paddingTop="28dp"
+    android:paddingRight="24dp"
+    android:paddingBottom="20dp">
+
+    <TextView
+        android:id="@+id/onboardingStep"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:fontFamily="sans-serif-medium"
+        android:letterSpacing="0.08"
+        android:textColor="@color/subtext"
+        android:textSize="11sp" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_marginTop="6dp"
+        android:layout_weight="1"
+        android:fillViewport="true"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:id="@+id/onboardingBody"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical" />
+    </ScrollView>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/onboardingBack"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:clickable="true"
+            android:focusable="true"
+            android:fontFamily="sans-serif"
+            android:minHeight="@dimen/touch_min"
+            android:gravity="center_vertical"
+            android:paddingLeft="12dp"
+            android:paddingRight="20dp"
+            android:textColor="@color/subtext"
+            android:textSize="14sp" />
+
+        <View
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1" />
+
+        <Button
+            android:id="@+id/onboardingNext"
+            android:layout_width="wrap_content"
+            android:layout_height="@dimen/touch_min"
+            android:background="@drawable/bg_button_active"
+            android:fontFamily="sans-serif-medium"
+            android:paddingLeft="28dp"
+            android:paddingRight="28dp"
+            android:stateListAnimator="@null"
+            android:textAllCaps="false"
+            android:textColor="@color/on_accent"
+            android:textSize="15sp" />
+    </LinearLayout>
+</LinearLayout>

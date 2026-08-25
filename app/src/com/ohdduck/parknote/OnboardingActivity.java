@@ -16,23 +16,38 @@ import android.view.WindowInsets;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
-import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import java.util.ArrayList;
 
 /**
- * 첫 실행 안내. 주차장 격자와 차량 블루투스를 여기서 정하므로,
- * 남의 기기에 개발자 차 이름 같은 기본값이 남지 않는다.
+ * 첫 실행 안내.
  *
- * <p>타이핑 없이 넘어갈 수 있게 모든 단계에 기본값을 채워 두고, 격자는 버튼으로만 조절한다.
+ * <p><b>단계 순서가 곧 이 앱이 동작하는 순서다.</b> 권한 → 차 블루투스 → 주차장 →
+ * 격자. 예전에는 권한이 맨 마지막이고 블루투스가 그 앞이라, 블루투스 기기 목록을
+ * 여는 시점에 아직 BLUETOOTH_CONNECT가 없었다. 목록이 비어 보이니 그냥 넘어가게
+ * 되고, 이름이 비면 {@link Store#vehicleMatchingBluetooth}가 null을 돌려줘
+ * {@link BtReceiver}가 알림을 띄우기 전에 그대로 빠져나간다. 사용자 입장에서는
+ * "자동 알림이 영영 안 오는 앱"이 된다.
+ *
+ * <p>껍데기(activity_onboarding.xml)는 onCreate에서 한 번만 인플레이트하고, 단계가
+ * 바뀌면 본문 컨테이너의 자식만 갈아 끼운다. 예전에는 단계마다 뷰 트리를 통째로
+ * 새로 만들어 setContentView를 다시 불렀는데, PhoneWindow는 콘텐츠 전환 기능이
+ * 꺼져 있을 때만 이전 뷰를 지우기 때문에 그 기능이 켜진 테마에서는 화면이 겹쳐
+ * 비어 보였다.
  */
 public class OnboardingActivity extends Activity {
 
     private static final int REQ_BLUETOOTH = 10;
+    private static final int REQ_PERMISSIONS = 12;
     private static final int REQ_FINISH = 11;
-    private static final int LAST_STEP = 3;
+
+    private static final int STEP_PERMISSIONS = 0;
+    private static final int STEP_VEHICLE = 1;
+    private static final int STEP_PROFILE = 2;
+    private static final int STEP_GRID = 3;
+    private static final int LAST_STEP = STEP_GRID;
 
     private interface IntChange {
         void onChange(int value);
@@ -45,7 +60,13 @@ public class OnboardingActivity extends Activity {
     private int zoneCount = 2;
     private String vehicleName;
     private String btName = "";
+    /** 블루투스를 비운 채 넘어가겠다고 이미 확인했으면 다시 묻지 않는다. */
+    private boolean btSkipConfirmed;
 
+    private TextView stepLabel;
+    private LinearLayout body;
+    private TextView backButton;
+    private Button nextButton;
     private TextView btValue;
 
     @Override
@@ -62,8 +83,30 @@ public class OnboardingActivity extends Activity {
             zoneCount = savedInstanceState.getInt("zoneCount", zoneCount);
             vehicleName = savedInstanceState.getString("vehicleName", vehicleName);
             btName = savedInstanceState.getString("btName", btName);
+            btSkipConfirmed = savedInstanceState.getBoolean("btSkipConfirmed", false);
         }
+
+        setContentView(R.layout.activity_onboarding);
+        stepLabel = findViewById(R.id.onboardingStep);
+        body = findViewById(R.id.onboardingBody);
+        backButton = findViewById(R.id.onboardingBack);
+        nextButton = findViewById(R.id.onboardingNext);
+
+        backButton.setOnClickListener(v -> onBack());
+        nextButton.setOnClickListener(v -> onNext());
+        applyWindowInsets();
         render();
+    }
+
+    private void applyWindowInsets() {
+        if (Build.VERSION.SDK_INT < 35) return;
+        View root = findViewById(R.id.onboardingRoot);
+        root.setOnApplyWindowInsetsListener((v, insets) -> {
+            android.graphics.Insets bars = insets.getInsets(WindowInsets.Type.systemBars());
+            v.setPadding(dp(24) + bars.left, dp(28) + bars.top,
+                    dp(24) + bars.right, dp(20) + bars.bottom);
+            return WindowInsets.CONSUMED;
+        });
     }
 
     /**
@@ -79,6 +122,10 @@ public class OnboardingActivity extends Activity {
     @Override
     @SuppressWarnings("deprecation")
     public void onBackPressed() {
+        onBack();
+    }
+
+    private void onBack() {
         if (step > 0) {
             step--;
             render();
@@ -97,49 +144,107 @@ public class OnboardingActivity extends Activity {
         out.putInt("zoneCount", zoneCount);
         out.putString("vehicleName", vehicleName);
         out.putString("btName", btName);
+        out.putBoolean("btSkipConfirmed", btSkipConfirmed);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // 권한 단계에서 시스템 설정에 다녀왔을 수 있다. 상태를 다시 읽는다.
+        if (step == STEP_PERMISSIONS) render();
     }
 
     // ---------- 화면 ----------
 
+    /** 껍데기는 그대로 두고 본문만 새로 채운다. */
     private void render() {
-        LinearLayout page = new LinearLayout(this);
-        page.setOrientation(LinearLayout.VERTICAL);
-        page.setBackgroundColor(getColor(R.color.bg));
-        page.setPadding(dp(24), dp(28), dp(24), dp(20));
+        stepLabel.setText(getString(R.string.onboarding_step, step + 1, LAST_STEP + 1));
+        backButton.setText(step == 0 ? R.string.onboarding_skip : R.string.onboarding_back);
+        nextButton.setText(step == LAST_STEP
+                ? R.string.onboarding_start : R.string.onboarding_next);
 
-        TextView stepLabel = text(getString(R.string.onboarding_step, step + 1, LAST_STEP + 1),
-                11, R.color.subtext, true);
-        stepLabel.setLetterSpacing(0.08f);
-        page.addView(stepLabel);
-
-        LinearLayout body = new LinearLayout(this);
-        body.setOrientation(LinearLayout.VERTICAL);
-        LinearLayout.LayoutParams bodyLp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f);
-        bodyLp.topMargin = dp(6);
-
-        if (step == 0) buildProfileStep(body);
-        else if (step == 1) buildGridStep(body);
-        else if (step == 2) buildVehicleStep(body);
-        else buildPermissionStep(body);
-
-        ScrollView scroll = new ScrollView(this);
-        scroll.setFillViewport(true);
-        scroll.addView(body);
-        page.addView(scroll, bodyLp);
-        page.addView(buildNav());
-
-        setContentView(page);
-        if (Build.VERSION.SDK_INT >= 35) {
-            page.setOnApplyWindowInsetsListener((v, insets) -> {
-                android.graphics.Insets bars = insets.getInsets(WindowInsets.Type.systemBars());
-                v.setPadding(dp(24), dp(28) + bars.top, dp(24), dp(20) + bars.bottom);
-                return WindowInsets.CONSUMED;
-            });
+        body.removeAllViews();
+        switch (step) {
+            case STEP_PERMISSIONS: buildPermissionStep(); break;
+            case STEP_VEHICLE: buildVehicleStep(); break;
+            case STEP_PROFILE: buildProfileStep(); break;
+            default: buildGridStep(); break;
         }
     }
 
-    private void buildProfileStep(LinearLayout body) {
+    /**
+     * 1단계: 권한.
+     *
+     * <p>맨 앞으로 옮겼다. 다음 단계에서 페어링된 기기 목록을 열어야 하는데, 그때
+     * BLUETOOTH_CONNECT가 없으면 목록이 비어 보인다. 알림 권한도 마찬가지로,
+     * 없으면 이 앱이 하는 일 전체가 조용히 아무 일도 안 하는 것으로 끝난다.
+     */
+    private void buildPermissionStep() {
+        body.addView(text(getString(R.string.onboarding_perm_title), 24, R.color.text, true));
+        body.addView(gap(text(getString(R.string.onboarding_perm_body),
+                14, R.color.subtext, false), 10));
+
+        boolean notify = hasNotificationPermission();
+        boolean bluetooth = hasBluetoothPermission();
+        body.addView(gap(permissionRow(getString(R.string.onboarding_perm_notify),
+                getString(R.string.onboarding_perm_notify_detail), notify), 20));
+        body.addView(gap(permissionRow(getString(R.string.onboarding_perm_bt),
+                getString(R.string.onboarding_perm_bt_detail), bluetooth), 12));
+
+        if (!notify || !bluetooth) {
+            Button allow = new Button(this);
+            allow.setText(R.string.onboarding_perm_allow);
+            allow.setAllCaps(false);
+            allow.setTextSize(15);
+            allow.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+            allow.setTextColor(getColor(R.color.on_accent));
+            allow.setBackgroundResource(R.drawable.bg_button_active);
+            allow.setStateListAnimator(null);
+            allow.setOnClickListener(v -> requestOnboardingPermissions());
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    getResources().getDimensionPixelSize(R.dimen.touch_min));
+            lp.topMargin = dp(20);
+            allow.setLayoutParams(lp);
+            body.addView(allow);
+        }
+
+        body.addView(gap(text(getString(R.string.onboarding_perm_note),
+                13, R.color.accent_text, false), 20));
+    }
+
+    /**
+     * 2단계: 차량과 블루투스.
+     *
+     * <p>이 앱의 자동 알림은 통째로 이 한 칸에 달려 있다. 등록된 이름과 끊긴 기기
+     * 이름이 정확히 같아야 알림이 뜬다.
+     */
+    private void buildVehicleStep() {
+        body.addView(text(getString(R.string.onboarding_vehicle_title),
+                24, R.color.text, true));
+        body.addView(gap(text(getString(R.string.onboarding_vehicle_body),
+                14, R.color.subtext, false), 10));
+
+        EditText input = field(vehicleName, getString(R.string.onboarding_vehicle_hint));
+        input.addTextChangedListener(new SimpleWatcher(value -> vehicleName = value));
+        body.addView(gap(input, 20));
+
+        body.addView(gap(text(getString(R.string.onboarding_bt_label),
+                13, R.color.subtext, true), 16));
+        btValue = text(btLabel(), 15,
+                btName.isEmpty() ? R.color.warn : R.color.text, true);
+        btValue.setBackgroundResource(R.drawable.bg_button);
+        btValue.setPadding(dp(14), dp(14), dp(14), dp(14));
+        btValue.setMinimumHeight(getResources().getDimensionPixelSize(R.dimen.touch_min));
+        btValue.setGravity(Gravity.CENTER_VERTICAL);
+        btValue.setOnClickListener(v -> pickBluetoothDevice());
+        body.addView(gap(btValue, 4));
+
+        body.addView(gap(text(getString(R.string.onboarding_bt_body),
+                13, R.color.subtext, false), 8));
+    }
+
+    private void buildProfileStep() {
         body.addView(text(getString(R.string.onboarding_profile_title),
                 24, R.color.text, true));
         body.addView(gap(text(getString(R.string.onboarding_profile_body),
@@ -150,7 +255,7 @@ public class OnboardingActivity extends Activity {
         body.addView(gap(input, 24));
     }
 
-    private void buildGridStep(LinearLayout body) {
+    private void buildGridStep() {
         body.addView(text(getString(R.string.onboarding_grid_title),
                 24, R.color.text, true));
         body.addView(gap(text(getString(R.string.onboarding_grid_body),
@@ -204,95 +309,27 @@ public class OnboardingActivity extends Activity {
         body.addView(gap(text(summary, 13, R.color.subtext, false), 8));
     }
 
-    private void buildVehicleStep(LinearLayout body) {
-        body.addView(text(getString(R.string.onboarding_vehicle_title),
-                24, R.color.text, true));
-        body.addView(gap(text(getString(R.string.onboarding_vehicle_body),
-                14, R.color.subtext, false), 10));
-
-        EditText input = field(vehicleName, getString(R.string.onboarding_vehicle_hint));
-        input.addTextChangedListener(new SimpleWatcher(value -> vehicleName = value));
-        body.addView(gap(input, 20));
-
-        body.addView(gap(text(getString(R.string.onboarding_bt_label),
-                13, R.color.subtext, true), 16));
-        btValue = text(btLabel(), 15, R.color.text, false);
-        btValue.setBackgroundResource(R.drawable.bg_button);
-        btValue.setPadding(dp(14), dp(14), dp(14), dp(14));
-        btValue.setOnClickListener(v -> pickBluetoothDevice());
-        body.addView(gap(btValue, 4));
-
-        body.addView(gap(text(getString(R.string.onboarding_bt_body),
-                13, R.color.subtext, false), 8));
-    }
-
-    private void buildPermissionStep(LinearLayout body) {
-        body.addView(text(getString(R.string.onboarding_perm_title),
-                24, R.color.text, true));
-        body.addView(gap(text(getString(R.string.onboarding_perm_body),
-                14, R.color.subtext, false), 10));
-
-        body.addView(gap(permissionRow(getString(R.string.onboarding_perm_notify),
-                getString(R.string.onboarding_perm_notify_detail)), 20));
-        body.addView(gap(permissionRow(getString(R.string.onboarding_perm_bt),
-                getString(R.string.onboarding_perm_bt_detail)), 12));
-
-        body.addView(gap(text(getString(R.string.onboarding_perm_note),
-                13, R.color.accent_text, false), 20));
-    }
-
-    private View permissionRow(String title, String detail) {
+    /** 권한 한 줄. 이미 허용됐으면 초록 체크로 확인시켜 준다. */
+    private View permissionRow(String title, String detail, boolean granted) {
         LinearLayout row = new LinearLayout(this);
-        row.setOrientation(LinearLayout.VERTICAL);
+        row.setOrientation(LinearLayout.HORIZONTAL);
         row.setBackgroundResource(R.drawable.bg_button);
         row.setPadding(dp(16), dp(14), dp(16), dp(14));
-        row.addView(text(title, 15, R.color.text, true));
-        row.addView(gap(text(detail, 13, R.color.subtext, false), 2));
+
+        LinearLayout column = new LinearLayout(this);
+        column.setOrientation(LinearLayout.VERTICAL);
+        column.setLayoutParams(new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        column.addView(text(title, 15, R.color.text, true));
+        column.addView(gap(text(detail, 13, R.color.subtext, false), 2));
+
+        TextView mark = text(granted ? "✓" : "·", 16,
+                granted ? R.color.ok : R.color.subtext, true);
+        mark.setPadding(dp(10), 0, 0, 0);
+
+        row.addView(column);
+        row.addView(mark);
         return row;
-    }
-
-    private View buildNav() {
-        LinearLayout nav = new LinearLayout(this);
-        nav.setOrientation(LinearLayout.HORIZONTAL);
-        nav.setGravity(Gravity.CENTER_VERTICAL);
-        LinearLayout.LayoutParams navLp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        navLp.topMargin = dp(12);
-        nav.setLayoutParams(navLp);
-
-        TextView back = text(getString(step == 0
-                ? R.string.onboarding_skip : R.string.onboarding_back),
-                14, R.color.subtext, false);
-        back.setPadding(dp(12), dp(14), dp(20), dp(14)); // 48dp 터치 타깃
-        back.setOnClickListener(v -> {
-            if (step == 0) confirmSkip();
-            else {
-                step--;
-                render();
-            }
-        });
-        nav.addView(back);
-
-        View filler = new View(this);
-        nav.addView(filler, new LinearLayout.LayoutParams(0,
-                LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-
-        Button next = new Button(this);
-        next.setText(step == LAST_STEP
-                ? R.string.onboarding_start : R.string.onboarding_next);
-        next.setAllCaps(false);
-        next.setTextSize(15);
-        next.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
-        next.setTextColor(getColor(R.color.on_accent));
-        next.setBackgroundResource(R.drawable.bg_button_active);
-        next.setStateListAnimator(null);
-        next.setPadding(dp(28), 0, dp(28), 0);
-        next.setLayoutParams(new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                getResources().getDimensionPixelSize(R.dimen.touch_min)));
-        next.setOnClickListener(v -> onNext());
-        nav.addView(next);
-        return nav;
     }
 
     // ---------- 위젯 조각 ----------
@@ -314,13 +351,7 @@ public class OnboardingActivity extends Activity {
         return view;
     }
 
-    /**
-     * 앱의 다른 폼과 같은 입력 필드를 쓴다 (Ui.input).
-     *
-     * <p>여기서 크기를 덮어쓰던 코드를 지웠다. Ui.input이 존재하는 이유가 폼 스타일을
-     * 한 곳에서 정하는 것인데, 온보딩만 몰래 키워 두니 같은 '주차장 이름' 칸이
-     * 다이얼로그에서와 온보딩에서 다르게 보였다.
-     */
+    /** 앱의 다른 폼과 같은 입력 필드를 쓴다 (Ui.input). */
     private EditText field(String value, String hint) {
         EditText input = Ui.input(this, hint);
         input.setText(value);
@@ -404,7 +435,20 @@ public class OnboardingActivity extends Activity {
     }
 
     private void onNext() {
-        if (step == 0 && profileName.trim().isEmpty()) {
+        if (step == STEP_VEHICLE) {
+            if (vehicleName.trim().isEmpty()) {
+                Toast.makeText(this, R.string.onboarding_vehicle_required,
+                        Toast.LENGTH_SHORT).show();
+                return;
+            }
+            // 블루투스를 비운 채 넘어가려 하면 결과를 먼저 알려 준다. 이걸 그냥
+            // 통과시키면 자동 알림이 영영 안 오는데, 사용자는 앱이 고장 났다고 여긴다.
+            if (btName.trim().isEmpty() && !btSkipConfirmed) {
+                confirmNoBluetooth();
+                return;
+            }
+        }
+        if (step == STEP_PROFILE && profileName.trim().isEmpty()) {
             Toast.makeText(this, R.string.onboarding_profile_required,
                     Toast.LENGTH_SHORT).show();
             return;
@@ -415,6 +459,21 @@ public class OnboardingActivity extends Activity {
             return;
         }
         requestPermissionsThenFinish();
+    }
+
+    /** 블루투스 없이 넘어가려 할 때. 고르러 가는 쪽을 기본 동작으로 둔다. */
+    private void confirmNoBluetooth() {
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.onboarding_bt_missing_title)
+                .setMessage(R.string.onboarding_bt_missing_message)
+                .setPositiveButton(R.string.onboarding_bt_missing_pick,
+                        (d, w) -> pickBluetoothDevice())
+                .setNegativeButton(R.string.onboarding_bt_missing_skip, (d, w) -> {
+                    btSkipConfirmed = true;
+                    step++;
+                    render();
+                })
+                .show();
     }
 
     private void confirmSkip() {
@@ -428,28 +487,52 @@ public class OnboardingActivity extends Activity {
                 .show();
     }
 
-    private void requestPermissionsThenFinish() {
+    // ---------- 권한 ----------
+
+    private boolean hasNotificationPermission() {
+        return Build.VERSION.SDK_INT < 33
+                || checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+                        == PackageManager.PERMISSION_GRANTED;
+    }
+
+    private boolean hasBluetoothPermission() {
+        return Build.VERSION.SDK_INT < 31
+                || checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT)
+                        == PackageManager.PERMISSION_GRANTED;
+    }
+
+    private String[] missingPermissions() {
         ArrayList<String> need = new ArrayList<>();
-        if (Build.VERSION.SDK_INT >= 31
-                && checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT)
-                        != PackageManager.PERMISSION_GRANTED) {
-            need.add(Manifest.permission.BLUETOOTH_CONNECT);
+        if (!hasBluetoothPermission()) need.add(Manifest.permission.BLUETOOTH_CONNECT);
+        if (!hasNotificationPermission()) need.add(Manifest.permission.POST_NOTIFICATIONS);
+        return need.toArray(new String[0]);
+    }
+
+    private void requestOnboardingPermissions() {
+        String[] need = missingPermissions();
+        if (need.length == 0) {
+            render();
+            return;
         }
-        if (Build.VERSION.SDK_INT >= 33
-                && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
-                        != PackageManager.PERMISSION_GRANTED) {
-            need.add(Manifest.permission.POST_NOTIFICATIONS);
-        }
-        if (need.isEmpty()) {
+        requestPermissions(need, REQ_PERMISSIONS);
+    }
+
+    private void requestPermissionsThenFinish() {
+        String[] need = missingPermissions();
+        if (need.length == 0) {
             saveAndOpenMain();
             return;
         }
-        requestPermissions(need.toArray(new String[0]), REQ_FINISH);
+        requestPermissions(need, REQ_FINISH);
     }
 
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] results) {
         super.onRequestPermissionsResult(requestCode, permissions, results);
+        if (requestCode == REQ_PERMISSIONS) {
+            render(); // 체크 표시를 방금 결과로 갱신
+            return;
+        }
         if (requestCode == REQ_FINISH) {
             // 권한을 거부해도 수동 기록은 되므로 온보딩은 그대로 끝낸다.
             saveAndOpenMain();
@@ -482,9 +565,7 @@ public class OnboardingActivity extends Activity {
     }
 
     private void pickBluetoothDevice() {
-        if (Build.VERSION.SDK_INT >= 31
-                && checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT)
-                        != PackageManager.PERMISSION_GRANTED) {
+        if (!hasBluetoothPermission()) {
             requestPermissions(new String[]{Manifest.permission.BLUETOOTH_CONNECT},
                     REQ_BLUETOOTH);
             return;
@@ -498,7 +579,9 @@ public class OnboardingActivity extends Activity {
 
     private void setBtName(String name) {
         btName = name == null ? "" : name.trim();
-        if (btValue != null) btValue.setText(btLabel());
+        if (!btName.isEmpty()) btSkipConfirmed = false;
+        // 색까지 함께 바뀌어야 해서 (비었으면 경고색) 이 단계를 다시 그린다.
+        if (step == STEP_VEHICLE) render();
     }
 
     private int dp(int v) {

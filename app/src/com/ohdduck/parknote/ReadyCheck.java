@@ -93,12 +93,17 @@ class ReadyCheck {
 
     // ---------- 개별 판정 ----------
 
+    /** 알림을 띄울 수 있는 상태인가. 테스트 알림이 먼저 묻는다. */
+    static boolean canPostNotifications(Context c) {
+        return Build.VERSION.SDK_INT < 33
+                || c.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+                        == PackageManager.PERMISSION_GRANTED;
+    }
+
     private static Item notifications(Context c) {
         // API 32 이하에는 런타임 권한 자체가 없다. 알림 자체를 꺼 뒀는지까지는
         // NotificationManager로 볼 수 있지만, 여기서는 권한만 본다.
-        boolean granted = Build.VERSION.SDK_INT < 33
-                || c.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
-                        == PackageManager.PERMISSION_GRANTED;
+        boolean granted = canPostNotifications(c);
         return new Item(R.string.ready_notifications,
                 granted ? State.OK : State.ACTION_NEEDED,
                 c.getString(granted ? R.string.ready_done : R.string.ready_needed),
@@ -106,13 +111,14 @@ class ReadyCheck {
     }
 
     private static Item bluetooth(Context c) {
-        // 블루투스 이름을 비워 두는 건 "수동 기록 전용 차량"이라는 정당한 선택이다.
-        // 그래서 경고가 아니라 NOT_USED로 둔다. 다만 이름이 있는데 권한이 없으면
-        // 이름을 읽지 못해 감지가 안 되므로 그때는 손봐야 한다.
+        // 이름이 비어 있으면 자동 알림은 절대 오지 않는다. Store.vehicleMatchingBluetooth가
+        // 빈 이름에 null을 돌려주고 BtReceiver가 거기서 빠져나가기 때문이다.
+        // "수동 기록 전용"이라는 정당한 선택이긴 하지만, 자동 알림을 기대하는 사람에게는
+        // 이게 유일한 실패 원인이므로 조용한 NOT_USED가 아니라 경고로 올린다.
         String btName = Store.vehicleBtName(c, Store.activeVehicleId(c));
         String vehicle = Store.activeVehicleName(c);
         if (btName == null || btName.trim().isEmpty()) {
-            return new Item(R.string.ready_bluetooth, State.NOT_USED,
+            return new Item(R.string.ready_bluetooth, State.ACTION_NEEDED,
                     c.getString(R.string.ready_bt_manual, vehicle), Action.BLUETOOTH);
         }
         boolean canRead = Build.VERSION.SDK_INT < 31

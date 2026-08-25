@@ -7,6 +7,9 @@ import android.view.Gravity;
 import android.view.View;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.widget.Toast;
+
+import org.json.JSONObject;
 
 import java.util.List;
 
@@ -70,6 +73,59 @@ class SettingsTab {
 
         readyList.removeAllViews();
         for (ReadyCheck.Item item : items) readyList.addView(readyRow(item));
+        readyList.addView(testRow());
+    }
+
+    /**
+     * 테스트 알림.
+     *
+     * <p>자동 알림이 안 뜨는 걸 확인하려면 지금까지는 차에 타서 시동을 끄고 내려야
+     * 했다. 여기서 같은 알림을 같은 코드로 띄워 보면, 문제가 알림 경로에 있는지
+     * 블루투스 감지에 있는지를 주차장에 가지 않고 가를 수 있다.
+     */
+    private View testRow() {
+        LinearLayout row = new LinearLayout(host);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setMinimumHeight(host.getResources().getDimensionPixelSize(R.dimen.touch_min));
+        row.setBackgroundResource(outValue());
+        row.setClickable(true);
+
+        TextView icon = Ui.text(host, "▷", 15, R.color.accent_text, true);
+        LinearLayout.LayoutParams iconLp = new LinearLayout.LayoutParams(
+                Ui.dp(host, 24), LinearLayout.LayoutParams.WRAP_CONTENT);
+        iconLp.rightMargin = Ui.dp(host, 10);
+        icon.setGravity(Gravity.CENTER);
+        icon.setLayoutParams(iconLp);
+
+        LinearLayout column = new LinearLayout(host);
+        column.setOrientation(LinearLayout.VERTICAL);
+        column.setLayoutParams(new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        column.addView(Ui.text(host, host.getString(R.string.ready_test),
+                15, R.color.accent_text, true));
+        column.addView(Ui.text(host, host.getString(R.string.ready_test_hint),
+                12, R.color.subtext, false));
+
+        row.addView(icon);
+        row.addView(column);
+        row.setOnClickListener(v -> sendTestNotification());
+        return row;
+    }
+
+    private void sendTestNotification() {
+        if (!ReadyCheck.canPostNotifications(host)) {
+            Toast.makeText(host, R.string.ready_test_no_permission, Toast.LENGTH_LONG).show();
+            ReadyCheck.run(host, ReadyCheck.Action.NOTIFICATIONS);
+            return;
+        }
+        JSONObject vehicle = Store.activeVehicle(host);
+        if (vehicle == null) {
+            Toast.makeText(host, R.string.ready_test_no_vehicle, Toast.LENGTH_LONG).show();
+            return;
+        }
+        BtReceiver.showParkPrompt(host, vehicle);
+        Toast.makeText(host, R.string.ready_test_sent, Toast.LENGTH_LONG).show();
     }
 
     private View readyRow(ReadyCheck.Item item) {

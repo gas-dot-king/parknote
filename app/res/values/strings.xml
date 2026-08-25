@@ -324,6 +324,12 @@
     <string name="onboarding_perm_bt">근처 기기 (블루투스)</string>
     <string name="onboarding_perm_bt_detail">차 블루투스가 끊기는 순간만 감지해요. 위치 추적은 하지 않아요.</string>
     <string name="onboarding_perm_note">상주 알림이나 배터리 최적화 해제는 요구하지 않아요.</string>
+    <string name="onboarding_perm_allow">권한 허용하기</string>
+    <string name="onboarding_vehicle_required">차량 이름을 입력해 주세요</string>
+    <string name="onboarding_bt_missing_title">블루투스를 안 고르셨어요</string>
+    <string name="onboarding_bt_missing_message">차 블루투스를 등록해야 차에서 내릴 때 자동으로 알림이 떠요.\n지금 비워 두면 매번 앱을 직접 열어 기록해야 합니다.\n\n지금 차에 안 타고 있다면 나중에 설정 탭에서 골라도 돼요.</string>
+    <string name="onboarding_bt_missing_pick">지금 고르기</string>
+    <string name="onboarding_bt_missing_skip">나중에 하기</string>
     <string name="onboarding_skip_confirm">기본 설정(지하 3층 · 구역 2개)으로 시작할까요?\n설정에서 언제든 바꿀 수 있어요.</string>
     <string name="onboarding_skip_action">이대로 시작</string>
     <string name="onboarding_skip_continue">계속 설정</string>
@@ -417,7 +423,12 @@
     <string name="ready_location">위치 권한</string>
     <string name="ready_location_always">항상 위치 허용</string>
 
-    <string name="ready_bt_manual">%1$s · 수동 기록 전용</string>
+    <string name="ready_bt_manual">%1$s · 등록 안 됨, 자동 알림이 오지 않아요</string>
+    <string name="ready_test">테스트 알림 보내기</string>
+    <string name="ready_test_hint">지금 차에서 내린 것처럼 알림을 띄워 봐요</string>
+    <string name="ready_test_sent">알림을 보냈어요. 알림창을 확인해 주세요</string>
+    <string name="ready_test_no_vehicle">먼저 차량 블루투스를 등록해 주세요</string>
+    <string name="ready_test_no_permission">알림 권한이 없어 보낼 수 없어요</string>
     <string name="ready_bt_no_permission">근처 기기 권한 필요</string>
     <string name="ready_location_off">사용 안 함</string>
 
