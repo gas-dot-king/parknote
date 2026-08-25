@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  히어로 카드의 자동차 일러스트. 앞에서 본 차 + 위쪽의 P 핀.
+
+  라이브러리 없이 벡터 하나로 그린다. 색은 accent 계열 고정값이다 — 이 그림은
+  accent로 칠한 카드 위에만 올라가고, 배경이 accent라 테마 토큰을 따라가면
+  차가 배경에 묻힌다.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="132dp"
+    android:height="120dp"
+    android:viewportWidth="132"
+    android:viewportHeight="120">
+
+    <!-- P 핀 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M66,2 C55.5,2 47,10.5 47,21 C47,33.5 66,50 66,50 C66,50 85,33.5 85,21 C85,10.5 76.5,2 66,2 Z" />
+    <path
+        android:fillColor="#1D1B12"
+        android:pathData="M60,10 L60,32 L64.5,32 L64.5,25 L69,25 C73.5,25 76.5,22 76.5,17.5 C76.5,13 73.5,10 69,10 Z M64.5,14 L68.5,14 C70.8,14 72,15.4 72,17.5 C72,19.6 70.8,21 68.5,21 L64.5,21 Z" />
+
+    <!-- 차체 위쪽 (지붕·앞유리) -->
+    <path
+        android:fillColor="#D8D2F0"
+        android:pathData="M38,72 L42,58 C43.5,53 47,50 52,50 L80,50 C85,50 88.5,53 90,58 L94,72 Z" />
+    <!-- 앞유리 -->
+    <path
+        android:fillColor="#4B3F8F"
+        android:pathData="M46,68 L49,58.5 C49.7,56.2 51,55 53,55 L79,55 C81,55 82.3,56.2 83,58.5 L86,68 Z" />
+
+    <!-- 차체 본체 -->
+    <path
+        android:fillColor="#E7E3F7"
+        android:pathData="M30,74 C30,71.8 31.8,70 34,70 L98,70 C100.2,70 102,71.8 102,74 L102,100 C102,102.2 100.2,104 98,104 L34,104 C31.8,104 30,102.2 30,100 Z" />
+
+    <!-- 헤드라이트 -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M35,79 C35,77.3 36.3,76 38,76 L48,76 C49.7,76 51,77.3 51,79 L51,84 C51,85.7 49.7,87 48,87 L38,87 C36.3,87 35,85.7 35,84 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M81,79 C81,77.3 82.3,76 84,76 L94,76 C95.7,76 97,77.3 97,79 L97,84 C97,85.7 95.7,87 94,87 L84,87 C82.3,87 81,85.7 81,84 Z" />
+
+    <!-- 그릴 -->
+    <path
+        android:fillColor="#5B4BC4"
+        android:pathData="M57,78 C57,76.3 58.3,75 60,75 L72,75 C73.7,75 75,76.3 75,78 L75,85 C75,86.7 73.7,88 72,88 L60,88 C58.3,88 57,86.7 57,85 Z" />
+
+    <!-- 바퀴 -->
+    <path
+        android:fillColor="#221F35"
+        android:pathData="M36,102 L52,102 L52,110 C52,112.2 50.2,114 48,114 L40,114 C37.8,114 36,112.2 36,110 Z" />
+    <path
+        android:fillColor="#221F35"
+        android:pathData="M80,102 L96,102 L96,110 C96,112.2 94.2,114 92,114 L84,114 C81.8,114 80,112.2 80,110 Z" />
+</vector>

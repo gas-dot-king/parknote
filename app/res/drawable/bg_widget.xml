@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  위젯 본체. 앱 카드와 색은 같지만 반경이 다르다.
+
+  런처는 Android 12+에서 위젯을 system_app_widget_background_radius로 잘라내는데
+  (Pixel 16dp, OEM에 따라 더 큼), 우리가 그보다 작은 반경으로 그리면 네 모서리에
+  배경화면이 초승달로 비친다. 그래서 반경만 @dimen/widget_radius로 분리한다.
+
+  stroke는 앱 안에서보다 여기서 더 중요하다. 위젯이 얹히는 배경화면은 무엇이든
+  될 수 있어서, 테두리가 없으면 위젯의 경계 자체가 사라진다.
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <solid android:color="@color/card" />
+    <stroke
+        android:width="@dimen/stroke"
+        android:color="@color/outline" />
+    <corners android:radius="@dimen/widget_radius" />
+</shape>

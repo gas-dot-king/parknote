@@ -1,0 +1,207 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  위치 탭 — "내 차까지 얼마나 남았나".
+
+  지도 타일은 일부러 그리지 않는다. 타일을 띄우려면 지도 SDK와 INTERNET 권한이
+  필요하고, 그러면 "좌표는 기기 밖으로 나가지 않는다"는 이 앱의 약속이 깨진다.
+  거리·방향·주소는 전부 기기 안에서 만들 수 있고(Store.metersBetween, Geocoder,
+  SensorManager), 실제 지도가 필요한 순간에는 geo: 인텐트로 사용자가 이미 쓰는
+  지도 앱에 넘긴다.
+-->
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/tabLocation"
+    style="@style/TabScroll">
+
+    <LinearLayout style="@style/TabColumn">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="@dimen/gutter"
+            android:fontFamily="sans-serif-medium"
+            android:letterSpacing="-0.02"
+            android:text="@string/location_tab_title"
+            android:textColor="@color/text"
+            android:textSize="24sp" />
+
+        <!-- 거리 + 나침반 화살표 -->
+        <LinearLayout
+            android:id="@+id/locCard"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:background="@drawable/bg_card"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingLeft="@dimen/card_padding"
+            android:paddingTop="22dp"
+            android:paddingRight="@dimen/card_padding"
+            android:paddingBottom="22dp">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="sans-serif-medium"
+                    android:letterSpacing="0.02"
+                    android:text="@string/location_to_car"
+                    android:textColor="@color/accent_text"
+                    android:textSize="12sp" />
+
+                <TextView
+                    android:id="@+id/locDistance"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:autoSizeMaxTextSize="40sp"
+                    android:autoSizeMinTextSize="18sp"
+                    android:autoSizeStepGranularity="1sp"
+                    android:autoSizeTextType="uniform"
+                    android:ellipsize="end"
+                    android:fontFamily="sans-serif-medium"
+                    android:letterSpacing="-0.03"
+                    android:maxLines="2"
+                    android:textColor="@color/text"
+                    android:textSize="40sp" />
+
+                <TextView
+                    android:id="@+id/locBearing"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:fontFamily="sans-serif"
+                    android:maxLines="2"
+                    android:textColor="@color/subtext"
+                    android:textSize="13sp" />
+            </LinearLayout>
+
+            <!--
+              차가 있는 방향을 가리키는 화살표. 기기 방위(나침반)와 차의 방위를
+              빼서 회전시키므로, 폰을 돌리면 화살표가 제자리를 가리킨 채 돈다.
+              나침반이 없거나 좌표가 없으면 통째로 숨는다.
+            -->
+            <ImageView
+                android:id="@+id/locArrow"
+                android:layout_width="72dp"
+                android:layout_height="72dp"
+                android:layout_marginLeft="12dp"
+                android:contentDescription="@string/cd_car_direction"
+                android:src="@drawable/ic_direction_arrow" />
+        </LinearLayout>
+
+        <!-- 주소 + 복사 -->
+        <LinearLayout
+            android:id="@+id/locAddressRow"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/bg_button"
+            android:gravity="center_vertical"
+            android:minHeight="@dimen/touch_min"
+            android:orientation="horizontal"
+            android:paddingLeft="16dp"
+            android:paddingTop="12dp"
+            android:paddingRight="16dp"
+            android:paddingBottom="12dp">
+
+            <TextView
+                android:id="@+id/locAddress"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:fontFamily="sans-serif"
+                android:maxLines="3"
+                android:textColor="@color/text"
+                android:textSize="14sp" />
+
+            <TextView
+                android:id="@+id/locCopy"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginLeft="10dp"
+                android:fontFamily="sans-serif-medium"
+                android:text="@string/location_copy"
+                android:textColor="@color/accent_text"
+                android:textSize="13sp" />
+        </LinearLayout>
+
+        <Button
+            android:id="@+id/locOpenMap"
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/touch_min"
+            android:layout_marginLeft="@dimen/gutter"
+            android:layout_marginRight="@dimen/gutter"
+            android:layout_marginTop="10dp"
+            android:background="@drawable/bg_button_active"
+            android:fontFamily="sans-serif-medium"
+            android:stateListAnimator="@null"
+            android:text="@string/location_open_map"
+            android:textAllCaps="false"
+            android:textColor="@color/on_accent"
+            android:textSize="15sp" />
+
+        <Button
+            android:id="@+id/locRefresh"
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/touch_min"
+            android:layout_marginLeft="@dimen/gutter"
+            android:layout_marginRight="@dimen/gutter"
+            android:layout_marginTop="6dp"
+            android:background="@drawable/bg_button"
+            android:fontFamily="sans-serif"
+            android:stateListAnimator="@null"
+            android:text="@string/location_refresh"
+            android:textAllCaps="false"
+            android:textColor="@color/subtext"
+            android:textSize="14sp" />
+
+        <!--
+          좌표가 없을 때 이 자리를 대신 채운다. 이유가 세 가지라(기록 없음 /
+          옛 기록이라 좌표 없음 / 위치 권한 없음) 문구를 코드에서 갈아 끼운다.
+        -->
+        <TextView
+            android:id="@+id/locEmpty"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="@dimen/gutter"
+            android:layout_marginRight="@dimen/gutter"
+            android:layout_marginTop="12dp"
+            android:fontFamily="sans-serif"
+            android:lineSpacingMultiplier="1.3"
+            android:textColor="@color/subtext"
+            android:textSize="14sp"
+            android:visibility="gone" />
+
+        <Button
+            android:id="@+id/locEmptyAction"
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/touch_min"
+            android:layout_marginLeft="@dimen/gutter"
+            android:layout_marginRight="@dimen/gutter"
+            android:layout_marginTop="10dp"
+            android:background="@drawable/bg_button"
+            android:fontFamily="sans-serif-medium"
+            android:stateListAnimator="@null"
+            android:textAllCaps="false"
+            android:textColor="@color/accent_text"
+            android:textSize="14sp"
+            android:visibility="gone" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="@dimen/gutter"
+            android:layout_marginRight="@dimen/gutter"
+            android:layout_marginTop="18dp"
+            android:fontFamily="sans-serif"
+            android:lineSpacingMultiplier="1.3"
+            android:text="@string/location_privacy_note"
+            android:textColor="@color/subtext"
+            android:textSize="12sp" />
+    </LinearLayout>
+</ScrollView>

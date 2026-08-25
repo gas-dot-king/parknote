@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  하단 탭 바.
+
+  프레임워크만 쓰는 앱이라 BottomNavigationView(Material)를 못 쓴다. 탭 네 칸을
+  같은 무게로 나눈 LinearLayout이면 충분하고, 의존성이 0으로 유지된다.
+
+  한 칸은 TextView 하나에 drawableTop을 얹은 것이다. 아이콘용 ImageView를 따로
+  두면 칸마다 뷰가 둘씩 늘어나는데, 아이콘과 라벨이 늘 같은 색으로 함께 움직이므로
+  나눌 이유가 없다. 색은 Tabs가 setCompoundDrawableTintList로 한 번에 바꾼다.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/bottomNav"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    tools:ignore="Overdraw"
+    android:background="@color/nav_bg"
+    android:orientation="horizontal"
+    android:paddingLeft="8dp"
+    android:paddingTop="6dp"
+    android:paddingRight="8dp"
+    android:paddingBottom="6dp">
+
+    <TextView
+        android:id="@+id/navHome"
+        style="@style/NavTab"
+        android:drawableTop="@drawable/ic_tab_home"
+        android:text="@string/tab_home" />
+
+    <TextView
+        android:id="@+id/navHistory"
+        style="@style/NavTab"
+        android:drawableTop="@drawable/ic_tab_history"
+        android:text="@string/tab_history" />
+
+    <TextView
+        android:id="@+id/navLocation"
+        style="@style/NavTab"
+        android:drawableTop="@drawable/ic_tab_location"
+        android:text="@string/tab_location" />
+
+    <TextView
+        android:id="@+id/navSettings"
+        style="@style/NavTab"
+        android:drawableTop="@drawable/ic_tab_settings"
+        android:text="@string/tab_settings" />
+</LinearLayout>

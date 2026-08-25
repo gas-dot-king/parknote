@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Android 12+에서는 런처가 위젯을 이 반경으로 잘라낸다. 우리 배경을 같은
+         값으로 그려야 모서리에 배경화면이 비치지 않는다. -->
+    <dimen name="widget_radius">@android:dimen/system_app_widget_background_radius</dimen>
+</resources>

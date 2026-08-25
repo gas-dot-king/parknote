@@ -1,0 +1,224 @@
+package com.ohdduck.parknote;
+
+import android.Manifest;
+import android.app.Activity;
+import android.content.Context;
+import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.net.Uri;
+import android.os.Build;
+import android.os.PowerManager;
+import android.provider.Settings;
+import android.widget.Toast;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * "자동 기록이 실제로 동작할 상태인가"를 한 번에 판정한다.
+ *
+ * <p>이 앱의 자동 알림은 조건 네댓 개가 전부 맞아야 뜬다. 하나라도 어긋나면 알림이
+ * 조용히 안 뜨는데, 사용자 입장에서는 앱이 그냥 고장 난 것처럼 보인다. 특히 배터리
+ * 최적화는 지금까지 README의 "폰에 설치 후 할 일 4번"으로만 안내하고 있었다 —
+ * 앱을 설치한 사람이 README를 읽을 이유가 없다.
+ *
+ * <p>판정만 하고 화면은 그리지 않는다. 그리는 쪽은 {@link SettingsTab}이다.
+ */
+class ReadyCheck {
+
+    /** 항목의 상태. 화면은 이 셋만 구분해 그리면 된다. */
+    enum State {
+        /** 조건이 맞다. */
+        OK,
+        /** 지금 이대로면 자동 기록이 안 된다. 사용자가 손봐야 한다. */
+        ACTION_NEEDED,
+        /**
+         * 이 기능을 안 쓰기로 해서 조건이 필요 없다.
+         *
+         * <p>경고가 아니다. 위치로 알림 조절은 기본이 꺼짐이라, 꺼 둔 사람에게
+         * 위치 권한을 "확인 필요"로 띄우면 멀쩡한 앱이 빨간불 투성이로 보인다.
+         */
+        NOT_USED
+    }
+
+    /** 항목을 누르거나 '설정하기'를 눌렀을 때 무엇을 열지 고르는 식별자. */
+    enum Action {
+        NOTIFICATIONS, BLUETOOTH, BATTERY, LOCATION
+    }
+
+    static class Item {
+        final int titleRes;
+        final State state;
+        /** 상태 밑에 붙는 짧은 설명. */
+        final String detail;
+        /** null이면 손볼 게 없어 버튼을 달지 않는다. */
+        final Action action;
+
+        Item(int titleRes, State state, String detail, Action action) {
+            this.titleRes = titleRes;
+            this.state = state;
+            this.detail = detail;
+            this.action = action;
+        }
+    }
+
+    private ReadyCheck() {
+    }
+
+    /**
+     * 위에서부터 중요한 순서로 돌려준다.
+     *
+     * <p>알림이 맨 위인 이유: 나머지가 전부 맞아도 알림 권한이 없으면 사용자가 보는
+     * 결과는 "아무 일도 안 일어남"으로 똑같다. 블루투스 등록이 그다음인데, 이름이
+     * 비어 있으면 감지 자체가 시작되지 않기 때문이다.
+     */
+    static List<Item> all(Context c) {
+        List<Item> items = new ArrayList<>();
+        items.add(notifications(c));
+        items.add(bluetooth(c));
+        items.add(battery(c));
+        items.add(locationForeground(c));
+        items.add(locationBackground(c));
+        return items;
+    }
+
+    /** 손봐야 할 항목 수. 0이면 카드 머리글을 "모두 준비됨"으로 바꾼다. */
+    static int pendingCount(Context c) {
+        int n = 0;
+        for (Item item : all(c)) {
+            if (item.state == State.ACTION_NEEDED) n++;
+        }
+        return n;
+    }
+
+    // ---------- 개별 판정 ----------
+
+    private static Item notifications(Context c) {
+        // API 32 이하에는 런타임 권한 자체가 없다. 알림 자체를 꺼 뒀는지까지는
+        // NotificationManager로 볼 수 있지만, 여기서는 권한만 본다.
+        boolean granted = Build.VERSION.SDK_INT < 33
+                || c.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+                        == PackageManager.PERMISSION_GRANTED;
+        return new Item(R.string.ready_notifications,
+                granted ? State.OK : State.ACTION_NEEDED,
+                c.getString(granted ? R.string.ready_done : R.string.ready_needed),
+                granted ? null : Action.NOTIFICATIONS);
+    }
+
+    private static Item bluetooth(Context c) {
+        // 블루투스 이름을 비워 두는 건 "수동 기록 전용 차량"이라는 정당한 선택이다.
+        // 그래서 경고가 아니라 NOT_USED로 둔다. 다만 이름이 있는데 권한이 없으면
+        // 이름을 읽지 못해 감지가 안 되므로 그때는 손봐야 한다.
+        String btName = Store.vehicleBtName(c, Store.activeVehicleId(c));
+        String vehicle = Store.activeVehicleName(c);
+        if (btName == null || btName.trim().isEmpty()) {
+            return new Item(R.string.ready_bluetooth, State.NOT_USED,
+                    c.getString(R.string.ready_bt_manual, vehicle), Action.BLUETOOTH);
+        }
+        boolean canRead = Build.VERSION.SDK_INT < 31
+                || c.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT)
+                        == PackageManager.PERMISSION_GRANTED;
+        return new Item(R.string.ready_bluetooth,
+                canRead ? State.OK : State.ACTION_NEEDED,
+                canRead ? btName : c.getString(R.string.ready_bt_no_permission),
+                Action.BLUETOOTH);
+    }
+
+    private static Item battery(Context c) {
+        PowerManager pm = (PowerManager) c.getSystemService(Context.POWER_SERVICE);
+        boolean exempt = pm != null && pm.isIgnoringBatteryOptimizations(c.getPackageName());
+        return new Item(R.string.ready_battery,
+                exempt ? State.OK : State.ACTION_NEEDED,
+                c.getString(exempt ? R.string.ready_done : R.string.ready_needed),
+                exempt ? null : Action.BATTERY);
+    }
+
+    private static Item locationForeground(Context c) {
+        if (!Store.locationFilterOn(c)) {
+            return new Item(R.string.ready_location, State.NOT_USED,
+                    c.getString(R.string.ready_location_off), Action.LOCATION);
+        }
+        boolean granted = Nearby.hasForegroundPermission(c);
+        return new Item(R.string.ready_location,
+                granted ? State.OK : State.ACTION_NEEDED,
+                c.getString(granted ? R.string.ready_done : R.string.ready_needed),
+                granted ? null : Action.LOCATION);
+    }
+
+    private static Item locationBackground(Context c) {
+        if (!Store.locationFilterOn(c)) {
+            return new Item(R.string.ready_location_always, State.NOT_USED,
+                    c.getString(R.string.ready_location_off), Action.LOCATION);
+        }
+        // 블루투스 끊김은 브로드캐스트 수신이라 앱이 백그라운드로 취급된다.
+        // "앱 사용 중에만 허용"으로는 그 순간 좌표를 읽지 못한다.
+        boolean granted = Build.VERSION.SDK_INT < 29
+                || c.checkSelfPermission(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+                        == PackageManager.PERMISSION_GRANTED;
+        return new Item(R.string.ready_location_always,
+                granted ? State.OK : State.ACTION_NEEDED,
+                c.getString(granted ? R.string.ready_done : R.string.ready_needed),
+                granted ? null : Action.LOCATION);
+    }
+
+    // ---------- 손보기 ----------
+
+    /** 항목의 '설정하기'를 눌렀을 때. 해당 시스템 화면이나 앱 다이얼로그를 연다. */
+    static void run(Activity a, Action action) {
+        switch (action) {
+            case NOTIFICATIONS:
+                openAppNotificationSettings(a);
+                break;
+            case BLUETOOTH:
+                // 지금은 MainActivity만 이 화면을 띄우지만, 캐스팅을 그냥 두면
+                // 다른 곳에서 재사용하는 순간 ClassCastException으로 죽는다.
+                if (a instanceof ScreenHost) {
+                    VehicleDialogs.showCurrentOptions(a, (ScreenHost) a);
+                }
+                break;
+            case BATTERY:
+                openBatterySettings(a);
+                break;
+            case LOCATION:
+                LocationFilterDialogs.showMenu(a);
+                break;
+        }
+    }
+
+    private static void openAppNotificationSettings(Activity a) {
+        Intent intent = new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                .putExtra(Settings.EXTRA_APP_PACKAGE, a.getPackageName());
+        if (!start(a, intent)) openAppDetails(a);
+    }
+
+    /**
+     * 배터리 최적화 목록을 연다.
+     *
+     * <p>바로 예외를 요청하는 {@code ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS}는
+     * REQUEST_IGNORE_BATTERY_OPTIMIZATIONS 권한이 필요하고 Play 정책 심사 대상이다.
+     * 목록을 열어 사용자가 직접 고르게 하면 권한도 심사도 필요 없다.
+     */
+    private static void openBatterySettings(Activity a) {
+        if (start(a, new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))) return;
+        openAppDetails(a);
+    }
+
+    /** 어느 전용 화면도 없는 기기를 위한 마지막 수단: 앱 정보 화면. */
+    private static void openAppDetails(Activity a) {
+        Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                .setData(Uri.fromParts("package", a.getPackageName(), null));
+        if (!start(a, intent)) {
+            Toast.makeText(a, R.string.location_settings_failed, Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private static boolean start(Activity a, Intent intent) {
+        try {
+            a.startActivity(intent);
+            return true;
+        } catch (Exception e) {
+            // 제조사에 따라 해당 화면이 없는 기기가 있다. 앱이 죽는 것보다 낫다.
+            return false;
+        }
+    }
+}

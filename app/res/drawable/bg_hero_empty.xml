@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 카드 바탕. card는 bg보다 1.10:1밖에 밝지 않아 면색만으로는 경계가 안 보인다.
-     밝은 곳에서 화면 밝기를 올리면 카드가 배경에 통째로 녹아버리므로 stroke를 둔다. -->
+<!-- 기록이 없을 때의 히어로. 밝은 면은 "저장됨"의 신호라서, 아직 저장된 게
+     없을 때 같은 금색을 칠하면 거짓말이 된다. 평범한 카드로 내려앉는다. -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android">
     <solid android:color="@color/card" />
     <stroke

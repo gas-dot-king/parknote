@@ -288,7 +288,8 @@ public class OnboardingActivity extends Activity {
         next.setStateListAnimator(null);
         next.setPadding(dp(28), 0, dp(28), 0);
         next.setLayoutParams(new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT, dp(48)));
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                getResources().getDimensionPixelSize(R.dimen.touch_min)));
         next.setOnClickListener(v -> onNext());
         nav.addView(next);
         return nav;
@@ -313,11 +314,16 @@ public class OnboardingActivity extends Activity {
         return view;
     }
 
-    /** 앱의 다른 폼과 같은 입력 필드를 쓴다 (Ui.input). */
+    /**
+     * 앱의 다른 폼과 같은 입력 필드를 쓴다 (Ui.input).
+     *
+     * <p>여기서 크기를 덮어쓰던 코드를 지웠다. Ui.input이 존재하는 이유가 폼 스타일을
+     * 한 곳에서 정하는 것인데, 온보딩만 몰래 키워 두니 같은 '주차장 이름' 칸이
+     * 다이얼로그에서와 온보딩에서 다르게 보였다.
+     */
     private EditText field(String value, String hint) {
         EditText input = Ui.input(this, hint);
         input.setText(value);
-        input.setTextSize(17);
         input.setSelection(input.getText().length());
         return input;
     }
@@ -332,8 +338,9 @@ public class OnboardingActivity extends Activity {
         b.setTextColor(getColor(active ? R.color.on_accent : R.color.subtext));
         b.setBackgroundResource(active ? R.drawable.bg_button_active : R.drawable.bg_button);
         b.setStateListAnimator(null);
+        int gutter = getResources().getDimensionPixelSize(R.dimen.gutter);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(62), 1f);
-        lp.setMargins(dp(3), 0, dp(3), 0);
+        lp.setMargins(gutter, 0, gutter, 0);
         b.setLayoutParams(lp);
         b.setOnClickListener(v -> onTap.run());
         return b;
@@ -360,19 +367,28 @@ public class OnboardingActivity extends Activity {
         return wrap;
     }
 
+    /**
+     * −/+ 한 칸.
+     *
+     * <p>비활성 글자색은 text_disabled를 쓴다. 예전에는 outline(테두리 토큰)을
+     * 글자색으로 빌려 썼는데, 그 토큰이 테두리용으로 어두워지자 button 배경 위에서
+     * 1.15:1이 돼 '−'가 아예 사라졌다. 층 수가 최소일 때 스테퍼가 반쯤 비어
+     * 고장난 것처럼 보였다.
+     */
     private View stepButton(String label, boolean enabled, Runnable onTap) {
         Button b = new Button(this);
         b.setText(label);
         b.setAllCaps(false);
         b.setTextSize(19);
-        b.setTextColor(getColor(enabled ? R.color.text : R.color.outline));
+        b.setTextColor(getColor(enabled ? R.color.text : R.color.text_disabled));
         b.setBackgroundResource(R.drawable.bg_button);
         b.setStateListAnimator(null);
         b.setPadding(0, 0, 0, 0);
         b.setMinWidth(0);
         b.setMinimumWidth(0);
         b.setEnabled(enabled);
-        b.setLayoutParams(new LinearLayout.LayoutParams(dp(46), dp(42)));
+        int touch = getResources().getDimensionPixelSize(R.dimen.touch_min);
+        b.setLayoutParams(new LinearLayout.LayoutParams(touch, touch));
         b.setOnClickListener(v -> onTap.run());
         return b;
     }

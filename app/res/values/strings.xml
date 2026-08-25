@@ -41,9 +41,8 @@
     <string name="status_time">%1$s · %2$s</string>
     <string name="habits_empty">\'추가\'를 눌러 반복할 일을 등록해 보세요</string>
     <string name="streak_days">%1$d일 연속</string>
-    <string name="all_history_link">전체 주차 기록 %1$d개 보기  ›</string>
 
-    <!-- 상단 주\李장 칩. ▾는 "눌러서 바꿀 수 있다"는 표시다. -->
+    <!-- 상단 주차장 칩. ▾는 "눌러서 바꿀 수 있다"는 표시다. -->
     <string name="profile_chip">%1$s ▾</string>
 
     <!-- 접근성 라벨 -->
@@ -64,12 +63,10 @@
     <string name="confirm_delete_last">마지막 기록(%1$s)을 삭제할까요?</string>
 
     <!-- ── 설정 메뉴 ──────────────────────────────────────────────────────── -->
-    <string name="settings_title">%1$s 설정</string>
     <string name="settings_switch_profile">주차장 전환 · %1$s</string>
     <string name="settings_manage_profile">현재 주차장 관리</string>
     <string name="settings_switch_vehicle">차량 전환 · %1$s</string>
     <string name="settings_manage_vehicle">현재 차량 관리</string>
-    <string name="settings_all_history">전체 주차 기록</string>
     <string name="settings_location_filter">위치로 알림 조절 · %1$s</string>
     <string name="settings_backup">백업 · 복원</string>
     <string name="state_on">켜짐</string>
@@ -77,8 +74,6 @@
 
     <!-- ── 전체 주차 기록 ─────────────────────────────────────────────────── -->
     <string name="history_empty">저장된 주차 기록이 없어요</string>
-    <string name="history_unknown">알 수 없는 기록</string>
-    <string name="history_row">%1$s\n%2$s · %3$s · %4$s</string>
 
     <!-- ── 주차장 프로필 ──────────────────────────────────────────────────── -->
     <string name="profile_default_name">주차장</string>
@@ -334,4 +329,105 @@
     <string name="onboarding_skip_continue">계속 설정</string>
     <string name="onboarding_default_profile">우리 집</string>
     <string name="onboarding_default_vehicle">내 차</string>
+
+    <!-- ==================== 하단 탭 ==================== -->
+    <string name="tab_home">홈</string>
+    <string name="tab_history">기록</string>
+    <string name="tab_location">위치</string>
+    <string name="tab_settings">설정</string>
+
+    <!-- ==================== 홈: 히어로 · 감지 상태 ==================== -->
+    <string name="hero_saved_label">주차 완료</string>
+    <string name="hero_empty_label">아직 기록이 없어요</string>
+    <string name="history_see_all">전체 보기</string>
+
+    <string name="detect_title">감지 상태</string>
+    <string name="detect_more">준비 상태</string>
+    <string name="cd_detect_card">감지 상태 자세히 보기</string>
+
+    <string name="detect_engine_on">시동 켜짐</string>
+    <string name="detect_engine_off">시동 꺼짐</string>
+    <string name="detect_engine_unknown">감지 대기</string>
+    <string name="detect_engine_on_hint">아직 차 안이에요</string>
+    <string name="detect_engine_off_hint">%1$s · 기록할 때</string>
+    <string name="detect_engine_never">연결된 적 없음</string>
+    <string name="detect_engine_manual">수동 기록 차량</string>
+
+    <string name="detect_place_known">%1$s 안</string>
+    <string name="detect_place_away">등록 범위 밖</string>
+    <string name="detect_place_unknown">위치 알 수 없음</string>
+    <string name="detect_place_off">위치 조절 꺼짐</string>
+    <string name="detect_place_none">주차장 좌표 없음</string>
+    <string name="detect_place_distance">%1$s에서 %2$s</string>
+    <string name="detect_place_normal">평소대로 알림</string>
+    <string name="detect_place_off_hint">어디서나 평소대로</string>
+
+    <!-- ==================== 기록 탭 ==================== -->
+    <string name="history_tab_title">주차 기록</string>
+    <string name="history_tab_hint">기록을 누르면 구역·시각·메모를 수정할 수 있어요. (최대 %1$d건 보관)</string>
+    <string name="history_tab_empty">아직 저장된 주차 기록이 없어요.\n홈에서 구역 버튼을 누르면 여기에 쌓입니다.</string>
+
+    <!-- ==================== 위치 탭 ==================== -->
+    <string name="location_tab_title">내 차 위치</string>
+    <string name="location_to_car">내 차까지</string>
+    <string name="location_copy">복사</string>
+    <string name="location_copied">주소를 복사했어요</string>
+    <string name="location_open_map">지도 앱으로 열기</string>
+    <string name="location_refresh">현재 위치 다시 잡기</string>
+    <string name="location_no_map_app">지도 앱을 찾을 수 없어요</string>
+    <string name="cd_car_direction">차가 있는 방향</string>
+
+    <string name="location_distance_m">%1$dm</string>
+    <string name="location_distance_km">%1$.1fkm</string>
+    <string name="location_bearing">%1$s · 도보 약 %2$d분</string>
+    <string name="location_bearing_far">%1$s 방향</string>
+    <string name="location_here">거의 다 왔어요</string>
+    <string name="location_address_loading">주소를 찾는 중…</string>
+    <string name="location_address_none">주소를 찾지 못했어요</string>
+    <string name="location_waiting">내 위치를 잡는 중…</string>
+
+    <string name="location_empty_no_record">아직 저장된 주차 기록이 없어요.\n홈에서 구역을 누르면 그 순간의 위치도 함께 저장됩니다.</string>
+    <string name="location_empty_no_coords">이 기록에는 위치가 없어요.\n위치 권한을 켠 뒤 저장한 기록부터 여기에 표시됩니다.</string>
+    <string name="location_empty_no_permission">위치 권한이 없어 차를 어디에 뒀는지 저장하지 못했어요.\n권한을 허용하면 다음 기록부터 표시됩니다.</string>
+    <string name="location_empty_action_permission">위치 권한 설정</string>
+    <string name="location_empty_action_record">홈으로 가서 기록하기</string>
+    <string name="location_privacy_note">좌표는 이 기기 안에만 저장되고 어디로도 전송되지 않습니다. 지도는 기기에 설치된 지도 앱으로 엽니다.</string>
+
+    <string name="dir_n">북쪽</string>
+    <string name="dir_ne">북동쪽</string>
+    <string name="dir_e">동쪽</string>
+    <string name="dir_se">남동쪽</string>
+    <string name="dir_s">남쪽</string>
+    <string name="dir_sw">남서쪽</string>
+    <string name="dir_w">서쪽</string>
+    <string name="dir_nw">북서쪽</string>
+
+    <!-- ==================== 설정 탭: 준비 상태 ==================== -->
+    <string name="settings_tab_hint">앱 환경과 감지 설정을 관리해요.</string>
+    <string name="ready_title">자동 감지 준비 상태</string>
+    <string name="ready_summary_ok">자동 기록에 필요한 설정이 모두 준비됐어요.</string>
+    <string name="ready_summary_pending">%1$d개 항목을 확인하면 자동 기록이 제대로 동작해요.</string>
+    <string name="ready_action">설정하기</string>
+    <string name="ready_done">완료</string>
+    <string name="ready_needed">확인 필요</string>
+
+    <string name="ready_notifications">알림 권한</string>
+    <string name="ready_bluetooth">차량 블루투스 등록</string>
+    <string name="ready_battery">배터리 제한 없음</string>
+    <string name="ready_location">위치 권한</string>
+    <string name="ready_location_always">항상 위치 허용</string>
+
+    <string name="ready_bt_manual">%1$s · 수동 기록 전용</string>
+    <string name="ready_bt_no_permission">근처 기기 권한 필요</string>
+    <string name="ready_location_off">사용 안 함</string>
+
+    <!-- ==================== 설정 탭: 항목 ==================== -->
+    <string name="settings_group_place">주차장</string>
+    <string name="settings_group_vehicle">차량</string>
+    <string name="settings_group_data">기록과 데이터</string>
+    <string name="settings_location_filter_sub">등록한 주차장 근처에서만 평소대로 알려요</string>
+    <string name="settings_row_zones">구역 편집</string>
+    <string name="settings_row_zones_sub">층·구역·기타 구역 이름과 개수</string>
+    <!-- 앱 이름 · 버전 · 태그라인 -->
+    <string name="settings_version">%1$s v%2$s\n%3$s</string>
 </resources>

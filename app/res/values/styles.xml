@@ -28,7 +28,7 @@
         <item name="android:layout_width">0dp</item>
         <item name="android:layout_height">match_parent</item>
         <item name="android:layout_weight">1</item>
-        <item name="android:layout_margin">3dp</item>
+        <item name="android:layout_margin">@dimen/gutter</item>
         <item name="android:background">@drawable/bg_button</item>
         <item name="android:stateListAnimator">@null</item>
         <item name="android:textAllCaps">false</item>
@@ -49,6 +49,57 @@
     </style>
 
     <!--
+      하단 탭 한 칸. 칸 전체가 터치 타깃이라 아이콘만 겨냥할 필요가 없다.
+      선택 표시는 배경(알약)과 아이콘 색 두 가지로 하며, 색만으로 구분하지 않는다.
+    -->
+    <style name="NavTab">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:layout_marginLeft">2dp</item>
+        <item name="android:layout_marginRight">2dp</item>
+        <item name="android:gravity">center</item>
+        <item name="android:paddingTop">8dp</item>
+        <item name="android:paddingBottom">8dp</item>
+        <item name="android:drawablePadding">3dp</item>
+        <item name="android:background">@drawable/bg_nav_active</item>
+        <item name="android:clickable">true</item>
+        <item name="android:focusable">true</item>
+        <item name="android:textSize">11sp</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+    </style>
+
+    <!-- 탭 화면 공통: 하단 바에 가리지 않게 아래 여백을 넉넉히 둔다. -->
+    <style name="TabScroll">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">match_parent</item>
+        <item name="android:fillViewport">true</item>
+        <item name="android:scrollbars">none</item>
+        <item name="android:clipToPadding">false</item>
+    </style>
+
+    <style name="TabColumn">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:orientation">vertical</item>
+        <item name="android:paddingLeft">@dimen/page_padding</item>
+        <item name="android:paddingTop">14dp</item>
+        <item name="android:paddingRight">@dimen/page_padding</item>
+        <item name="android:paddingBottom">20dp</item>
+    </style>
+
+    <!-- 섹션 머리글. 거터를 써서 아래 목록의 왼쪽 끝과 한 줄로 떨어진다. -->
+    <style name="SectionTitle">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginLeft">@dimen/gutter</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:letterSpacing">0.01</item>
+        <item name="android:textColor">@color/subtext</item>
+        <item name="android:textSize">13sp</item>
+    </style>
+
+    <!--
       상태 카드의 보조 조작 (수정 · 삭제 · 구역 편집 · 추가).
 
       예전에는 TextView + padding 4dp라 실측 48dp가 아니라 26dp였다. 운전 직후
@@ -57,7 +108,7 @@
     -->
     <style name="InlineAction">
         <item name="android:layout_width">wrap_content</item>
-        <item name="android:layout_height">48dp</item>
+        <item name="android:layout_height">@dimen/touch_min</item>
         <item name="android:minWidth">56dp</item>
         <item name="android:background">?android:attr/selectableItemBackgroundBorderless</item>
         <item name="android:stateListAnimator">@null</item>

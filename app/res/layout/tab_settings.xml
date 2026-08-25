@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  설정 탭. 예전에는 setItems 다이얼로그 하나에 일곱 항목이 들어 있었다.
+  맨 위의 준비 상태 카드가 이 화면의 존재 이유다 — 자동 기록이 안 되는 이유를
+  앱 밖(README·시스템 설정)에서 찾게 두지 않는다.
+-->
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/tabSettings"
+    style="@style/TabScroll">
+
+    <LinearLayout style="@style/TabColumn">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="@dimen/gutter"
+            android:fontFamily="sans-serif-medium"
+            android:letterSpacing="-0.02"
+            android:text="@string/settings"
+            android:textColor="@color/text"
+            android:textSize="24sp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="@dimen/gutter"
+            android:layout_marginRight="@dimen/gutter"
+            android:layout_marginTop="4dp"
+            android:fontFamily="sans-serif"
+            android:text="@string/settings_tab_hint"
+            android:textColor="@color/subtext"
+            android:textSize="13sp" />
+
+        <!-- 자동 감지 준비 상태 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:background="@drawable/bg_card"
+            android:orientation="vertical"
+            android:paddingLeft="18dp"
+            android:paddingTop="18dp"
+            android:paddingRight="18dp"
+            android:paddingBottom="10dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="sans-serif-medium"
+                android:text="@string/ready_title"
+                android:textColor="@color/text"
+                android:textSize="17sp" />
+
+            <TextView
+                android:id="@+id/readySummary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="3dp"
+                android:fontFamily="sans-serif"
+                android:lineSpacingMultiplier="1.25"
+                android:textColor="@color/subtext"
+                android:textSize="13sp" />
+
+            <LinearLayout
+                android:id="@+id/readyList"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:orientation="vertical" />
+        </LinearLayout>
+
+        <!-- 주차장 · 차량 · 기록 · 데이터 -->
+        <TextView
+            style="@style/SectionTitle"
+            android:layout_marginTop="22dp"
+            android:text="@string/settings_group_place" />
+
+        <LinearLayout
+            android:id="@+id/settingsPlace"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:orientation="vertical" />
+
+        <TextView
+            style="@style/SectionTitle"
+            android:layout_marginTop="22dp"
+            android:text="@string/settings_group_vehicle" />
+
+        <LinearLayout
+            android:id="@+id/settingsVehicle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:orientation="vertical" />
+
+        <TextView
+            style="@style/SectionTitle"
+            android:layout_marginTop="22dp"
+            android:text="@string/settings_group_data" />
+
+        <LinearLayout
+            android:id="@+id/settingsData"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:orientation="vertical" />
+
+        <TextView
+            android:id="@+id/settingsVersion"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="@dimen/gutter"
+            android:layout_marginRight="@dimen/gutter"
+            android:layout_marginTop="20dp"
+            android:fontFamily="sans-serif"
+            android:textColor="@color/subtext"
+            android:textSize="12sp" />
+    </LinearLayout>
+</ScrollView>

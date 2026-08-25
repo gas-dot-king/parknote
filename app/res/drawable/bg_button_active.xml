@@ -1,10 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 선택된 구역. accent 면이 card 대비 10.4:1이라 경계가 면색만으로 충분하다.
+     여기에 회색 stroke를 두르면 오히려 강조가 흐려진다. -->
 <ripple xmlns:android="http://schemas.android.com/apk/res/android"
     android:color="#30FFFFFF">
     <item>
         <shape>
             <solid android:color="@color/accent" />
-            <corners android:radius="12dp" />
+            <corners android:radius="@dimen/radius_control" />
         </shape>
     </item>
 </ripple>

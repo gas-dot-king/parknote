@@ -97,7 +97,8 @@ class Ui {
         button.setBackgroundResource(R.drawable.bg_button);
         button.setStateListAnimator(null);
         button.setLayoutParams(new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(c, 44)));
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                c.getResources().getDimensionPixelSize(R.dimen.touch_min)));
         return button;
     }
 
@@ -107,7 +108,8 @@ class Ui {
     static LinearLayout form(Context c) {
         LinearLayout form = new LinearLayout(c);
         form.setOrientation(LinearLayout.VERTICAL);
-        form.setPadding(dp(c, 22), dp(c, 6), dp(c, 22), dp(c, 10));
+        int side = c.getResources().getDimensionPixelSize(R.dimen.card_padding);
+        form.setPadding(side, dp(c, 6), side, dp(c, 10));
         return form;
     }
 

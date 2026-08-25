@@ -1,0 +1,441 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  홈 탭. 위에서부터 "지금 어디에 댔나 → 감지가 살아 있나 → 지금 기록하기 → 최근".
+
+  기록 버튼(격자)이 화면 중간에 있는 건 의도적이다. 벤치마크 앱은 층을 자동으로
+  잡아서 홈에 버튼이 없지만, 이 앱은 층×구역을 사람이 눌러 저장한다. 그 버튼이
+  이 앱의 존재 이유라서 홈 밖으로 내보내지 않는다.
+-->
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/tabHome"
+    style="@style/TabScroll">
+
+    <LinearLayout style="@style/TabColumn">
+
+        <!-- 브랜드 머리글 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="@dimen/gutter"
+            android:layout_marginRight="@dimen/gutter"
+            android:layout_marginBottom="12dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:background="@drawable/bg_brand_badge"
+                android:contentDescription="@null"
+                android:fontFamily="sans-serif-black"
+                android:gravity="center"
+                android:text="@string/brand_mark"
+                android:textColor="@color/on_accent"
+                android:textSize="22sp" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginLeft="10dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="sans-serif-medium"
+                    android:letterSpacing="-0.02"
+                    android:text="@string/app_name"
+                    android:textColor="@color/text"
+                    android:textSize="20sp" />
+
+                <!-- 현재 주차장. 탭하면 주차장 전환. -->
+                <TextView
+                    android:id="@+id/btnProfile"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="1dp"
+                    android:background="?android:attr/selectableItemBackgroundBorderless"
+                    android:clickable="true"
+                    android:contentDescription="@string/cd_switch_profile"
+                    android:ellipsize="end"
+                    android:focusable="true"
+                    android:fontFamily="sans-serif"
+                    android:letterSpacing="0.02"
+                    android:minHeight="24dp"
+                    android:singleLine="true"
+                    android:textColor="@color/accent_text"
+                    android:textSize="12sp" />
+            </LinearLayout>
+
+            <Button
+                android:id="@+id/btnSettings"
+                style="@style/InlineAction"
+                android:text="@string/settings"
+                android:textColor="@color/accent_text" />
+        </LinearLayout>
+
+        <!--
+          히어로 카드. 저장돼 있을 때는 금색 면 + 자동차 그림으로 "확실히 저장됨"을
+          한눈에 보여 주고, 비어 있으면 평범한 카드로 내려앉는다 (bg_hero_empty).
+        -->
+        <LinearLayout
+            android:id="@+id/heroCard"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_hero"
+            android:orientation="horizontal"
+            android:paddingLeft="@dimen/card_padding"
+            android:paddingTop="18dp"
+            android:paddingRight="14dp"
+            android:paddingBottom="18dp">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_vertical"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/heroLabel"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="sans-serif-medium"
+                    android:letterSpacing="0.02"
+                    android:text="@string/current_label"
+                    android:textSize="12sp" />
+
+                <!--
+                  직접 입력한 긴 위치("롯데몰 B2 F기둥")가 들어와도 카드가 밀리지 않게
+                  두 줄로 제한하고, 길이에 따라 글자 크기를 34sp → 19sp로 줄인다.
+                  maxLines만 걸면 정보가 잘려 나가므로 자동 축소를 먼저 쓴다.
+                -->
+                <TextView
+                    android:id="@+id/statusZone"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:autoSizeMaxTextSize="34sp"
+                    android:autoSizeMinTextSize="19sp"
+                    android:autoSizeStepGranularity="1sp"
+                    android:autoSizeTextType="uniform"
+                    android:ellipsize="end"
+                    android:fontFamily="sans-serif-medium"
+                    android:letterSpacing="-0.03"
+                    android:maxLines="2"
+                    android:textSize="34sp" />
+
+                <TextView
+                    android:id="@+id/statusTime"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="3dp"
+                    android:ellipsize="end"
+                    android:fontFamily="sans-serif"
+                    android:maxLines="2"
+                    android:textSize="13sp" />
+
+                <!-- 주차장 · 차량 · 메모 · 예약된 출차 알림 -->
+                <TextView
+                    android:id="@+id/statusMeta"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:background="@drawable/bg_hero_chip"
+                    android:ellipsize="end"
+                    android:fontFamily="sans-serif"
+                    android:maxLines="3"
+                    android:paddingLeft="12dp"
+                    android:paddingTop="6dp"
+                    android:paddingRight="12dp"
+                    android:paddingBottom="6dp"
+                    android:textSize="12sp"
+                    android:visibility="gone" />
+            </LinearLayout>
+
+            <ImageView
+                android:id="@+id/heroArt"
+                android:layout_width="96dp"
+                android:layout_height="88dp"
+                android:layout_gravity="center_vertical"
+                android:contentDescription="@null"
+                android:src="@drawable/ic_car_hero" />
+        </LinearLayout>
+
+        <!-- 히어로 카드에 딸린 조작. 카드가 금색이라 버튼을 안에 넣으면 시끄러워진다. -->
+        <LinearLayout
+            android:id="@+id/heroActions"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="@dimen/gutter"
+            android:layout_marginRight="@dimen/gutter"
+            android:layout_marginTop="2dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btnTimer"
+                style="@style/InlineAction"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:gravity="center_vertical|start"
+                android:paddingLeft="0dp"
+                android:text="@string/parking_timer"
+                android:textColor="@color/subtext" />
+
+            <Button
+                android:id="@+id/btnEdit"
+                style="@style/InlineAction"
+                android:contentDescription="@string/cd_edit_record"
+                android:text="@string/edit"
+                android:textColor="@color/subtext" />
+
+            <Button
+                android:id="@+id/btnDelete"
+                style="@style/InlineAction"
+                android:contentDescription="@string/cd_delete_record"
+                android:text="@string/delete"
+                android:textColor="@color/subtext" />
+        </LinearLayout>
+
+        <!--
+          감지 상태 카드. 시동(블루투스 연결) · 위치 판정을 한 줄씩 보여 주고,
+          탭하면 설정 탭의 준비 상태로 넘어간다. 지금까지 이 정보는 알림이 뜰 때만
+          간접적으로 드러났고, "왜 알림이 안 오지"를 앱 안에서 확인할 길이 없었다.
+        -->
+        <LinearLayout
+            android:id="@+id/detectCard"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:background="@drawable/bg_card"
+            android:orientation="vertical"
+            android:paddingLeft="18dp"
+            android:paddingTop="14dp"
+            android:paddingRight="18dp"
+            android:paddingBottom="14dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/detectTitle"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:fontFamily="sans-serif-medium"
+                    android:text="@string/detect_title"
+                    android:textColor="@color/text"
+                    android:textSize="14sp" />
+
+                <TextView
+                    android:id="@+id/detectMore"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="sans-serif"
+                    android:text="@string/detect_more"
+                    android:textColor="@color/accent_text"
+                    android:textSize="12sp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:orientation="horizontal">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/detectEngine"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:ellipsize="end"
+                        android:fontFamily="sans-serif-medium"
+                        android:maxLines="1"
+                        android:textColor="@color/text"
+                        android:textSize="14sp" />
+
+                    <TextView
+                        android:id="@+id/detectEngineHint"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:ellipsize="end"
+                        android:fontFamily="sans-serif"
+                        android:maxLines="1"
+                        android:textColor="@color/subtext"
+                        android:textSize="12sp" />
+                </LinearLayout>
+
+                <View
+                    android:layout_width="1dp"
+                    android:layout_height="match_parent"
+                    android:layout_marginLeft="12dp"
+                    android:layout_marginRight="12dp"
+                    android:background="@color/outline" />
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/detectPlace"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:ellipsize="end"
+                        android:fontFamily="sans-serif-medium"
+                        android:maxLines="1"
+                        android:textColor="@color/text"
+                        android:textSize="14sp" />
+
+                    <TextView
+                        android:id="@+id/detectPlaceHint"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:ellipsize="end"
+                        android:fontFamily="sans-serif"
+                        android:maxLines="1"
+                        android:textColor="@color/subtext"
+                        android:textSize="12sp" />
+                </LinearLayout>
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- 기록하기: 층 × 구역 격자 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="@dimen/gutter"
+            android:layout_marginRight="@dimen/gutter"
+            android:layout_marginTop="20dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:fontFamily="sans-serif-medium"
+                android:letterSpacing="0.01"
+                android:text="@string/zone_prompt"
+                android:textColor="@color/subtext"
+                android:textSize="13sp" />
+
+            <Button
+                android:id="@+id/btnEditZones"
+                style="@style/InlineAction"
+                android:text="@string/zone_edit"
+                android:textColor="@color/accent_text" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/grid"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:orientation="vertical" />
+
+        <LinearLayout
+            android:id="@+id/etcGrid"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:orientation="vertical" />
+
+        <Button
+            android:id="@+id/btnCustom"
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/touch_min"
+            android:layout_marginLeft="@dimen/gutter"
+            android:layout_marginRight="@dimen/gutter"
+            android:layout_marginTop="6dp"
+            android:background="@drawable/bg_button"
+            android:fontFamily="sans-serif"
+            android:stateListAnimator="@null"
+            android:text="@string/custom_input"
+            android:textAllCaps="false"
+            android:textColor="@color/subtext"
+            android:textSize="14sp" />
+
+        <!-- 나가기 전 체크 (습관) -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="@dimen/gutter"
+            android:layout_marginRight="@dimen/gutter"
+            android:layout_marginTop="24dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:fontFamily="sans-serif-medium"
+                android:letterSpacing="0.01"
+                android:text="@string/habit_title"
+                android:textColor="@color/subtext"
+                android:textSize="13sp" />
+
+            <Button
+                android:id="@+id/btnAddHabit"
+                style="@style/InlineAction"
+                android:contentDescription="@string/cd_add_habit"
+                android:text="@string/add"
+                android:textColor="@color/accent_text" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/habitList"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:orientation="vertical" />
+
+        <!-- 최근 기록 (전체는 기록 탭) -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="@dimen/gutter"
+            android:layout_marginRight="@dimen/gutter"
+            android:layout_marginTop="24dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:fontFamily="sans-serif-medium"
+                android:letterSpacing="0.01"
+                android:text="@string/history_title"
+                android:textColor="@color/subtext"
+                android:textSize="13sp" />
+
+            <Button
+                android:id="@+id/btnAllHistory"
+                style="@style/InlineAction"
+                tools:ignore="ButtonStyle"
+                android:text="@string/history_see_all"
+                android:textColor="@color/accent_text" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/historyList"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:orientation="vertical" />
+    </LinearLayout>
+</ScrollView>

@@ -192,6 +192,39 @@ public class ZoneGridLogicTest {
         assertEquals("A", Store.firstDuplicate(new String[]{"A", "B", "A"}, new String[0]));
     }
 
+    // ---------- 칸 높이 ----------
+
+    @Test
+    public void cellHeightDp_탭할_수_있는_칸은_48dp_아래로_안_내려간다() {
+        // 리디자인 때 6구역 이상 격자가 42dp → 40dp로 내려갔다. 마진은 히트 영역이
+        // 아니라 여백으로 벌충되지도 않는다. 운전 직후 한 손으로 누르는 앱이라
+        // 여기가 앱에서 제일 아픈 회귀다.
+        for (int cols = 1; cols <= Store.MAX_COLS; cols++) {
+            assertTrue("격자 " + cols + "구역: " + ZoneGrid.cellHeightDp(cols, true, false),
+                    ZoneGrid.cellHeightDp(cols, true, false) >= ZoneGrid.MIN_TOUCH_DP);
+            assertTrue("목록 " + cols + "구역: " + ZoneGrid.cellHeightDp(cols, false, false),
+                    ZoneGrid.cellHeightDp(cols, false, false) >= ZoneGrid.MIN_TOUCH_DP);
+        }
+    }
+
+    @Test
+    public void cellHeightDp_구역이_많아질수록_낮아지되_단조롭다() {
+        // 하한을 지키느라 중간 구간이 뒤집히면(적은 구역이 더 낮아지면) 격자가 이상해진다.
+        int previous = Integer.MAX_VALUE;
+        for (int cols = 1; cols <= Store.MAX_COLS; cols++) {
+            int height = ZoneGrid.cellHeightDp(cols, true, false);
+            assertTrue("구역 " + cols + "에서 커졌다", height <= previous);
+            previous = height;
+        }
+    }
+
+    @Test
+    public void cellHeightDp_미리보기는_하한을_적용받지_않는다() {
+        // compact는 tap이 null이라 버튼이 비활성이다. 여기까지 48dp로 키우면
+        // 온보딩 미리보기가 화면을 넘긴다.
+        assertTrue(ZoneGrid.cellHeightDp(8, true, true) < ZoneGrid.MIN_TOUCH_DP);
+    }
+
     // ---------- 거리 ----------
 
     @Test

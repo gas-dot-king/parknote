@@ -4,6 +4,7 @@ import android.app.NotificationManager;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.location.Location;
 import android.service.quicksettings.TileService;
 
 import org.json.JSONArray;
@@ -77,6 +78,8 @@ class Store {
     private static final String PREF_ACTIVE_VEHICLE = "active_parking_vehicle_id";
     private static final String PREF_HISTORY = "history";
     private static final String PREF_HABITS = "habits";
+    /** BtReceiver가 본 마지막 연결/해제. 홈의 감지 상태 카드가 읽는 표시용 상태다. */
+    private static final String PREF_BT_STATE = "bt_state";
 
     static final String CHANNEL = "park_reminder";
     /** 등록한 주차장이 아닐 때 쓰는 무음 채널. 알림함에는 남지만 방해하지 않는다. */
@@ -1159,6 +1162,16 @@ class Store {
             entry.put("t", System.currentTimeMillis());
             String m = clean(memo);
             if (!m.isEmpty()) entry.put("m", m);
+
+            // 차를 어디에 뒀는지 좌표로도 남긴다. '위치' 탭이 여기서 거리와 방향을 만든다.
+            // 새 측위는 요청하지 않는다(Nearby의 원칙). 권한이 없거나 좌표가 낡았으면
+            // 그냥 안 붙고, 그 기록은 '위치' 탭에서 안내 문구로 바뀐다.
+            // 좌표는 다른 저장값과 마찬가지로 기기 밖으로 나가지 않는다.
+            Location fix = Nearby.lastFix(c);
+            if (fix != null) {
+                entry.put("lat", fix.getLatitude());
+                entry.put("lon", fix.getLongitude());
+            }
             next.put(entry);
 
             // 맥락(주차장×차량)별로 세면서 담는다. 전역 상한 하나로 자르면 차를 두 대
@@ -1314,6 +1327,106 @@ class Store {
 
     static String recordMemo(JSONObject entry) {
         return entry == null ? "" : clean(entry.optString("m", ""));
+    }
+
+    // ---------- 주차 좌표 ----------
+
+    /**
+     * 기록에 좌표가 붙어 있는가. 옛 기록에는 없다.
+     *
+     * <p>lat/lon은 v3.2부터 저장한다. 위치 권한이 없거나 마지막 좌표가 낡았으면
+     * 새 기록에도 붙지 않으므로, 있는지 없는지를 항상 먼저 물어야 한다.
+     */
+    static boolean recordHasCoords(JSONObject entry) {
+        return entry != null && entry.has("lat") && entry.has("lon");
+    }
+
+    static double recordLat(JSONObject entry) {
+        return entry == null ? 0 : entry.optDouble("lat", 0);
+    }
+
+    static double recordLon(JSONObject entry) {
+        return entry == null ? 0 : entry.optDouble("lon", 0);
+    }
+
+    /**
+     * 등록된 주차장 중 이 좌표에서 가장 가까운 곳까지의 거리(m). 없으면 -1.
+     *
+     * <p>홈의 감지 상태 카드가 "우리집 범위 밖 (15.7km)"을 만들 때 쓴다.
+     * {@link #profileNear}는 반경 안인지만 답하므로 거리를 따로 잰다.
+     */
+    static double nearestProfileMeters(Context c, double lat, double lon) {
+        JSONArray all = profiles(c);
+        double best = -1;
+        for (int i = 0; i < all.length(); i++) {
+            JSONObject p = all.optJSONObject(i);
+            if (!hasCoords(p)) continue;
+            double d = metersBetween(lat, lon, p.optDouble("lat"), p.optDouble("lon"));
+            if (best < 0 || d < best) best = d;
+        }
+        return best;
+    }
+
+    /** 위 거리에 해당하는 주차장 이름. 없으면 null. */
+    static String nearestProfileName(Context c, double lat, double lon) {
+        JSONArray all = profiles(c);
+        double best = -1;
+        String name = null;
+        for (int i = 0; i < all.length(); i++) {
+            JSONObject p = all.optJSONObject(i);
+            if (!hasCoords(p)) continue;
+            double d = metersBetween(lat, lon, p.optDouble("lat"), p.optDouble("lon"));
+            if (best < 0 || d < best) {
+                best = d;
+                name = p.optString("n", c.getString(R.string.profile_default_name));
+            }
+        }
+        return name;
+    }
+
+    // ---------- 차량 블루투스 연결 상태 ----------
+
+    /**
+     * BtReceiver가 본 마지막 연결/해제를 남긴다. 홈의 감지 상태 카드가 읽는다.
+     *
+     * <p>BluetoothAdapter에 "지금 이 기기가 붙어 있나"를 직접 묻는 API는 프로필별
+     * 상태(A2DP/HEADSET)만 알려 주고 어느 기기인지는 알려 주지 않는다. 우리가 이미
+     * 정확히 아는 시점(브로드캐스트)에 적어 두는 편이 정확하고 권한도 덜 든다.
+     */
+    static void setBtState(Context c, String vehicleId, boolean connected) {
+        try {
+            JSONObject state = new JSONObject()
+                    .put("v", vehicleId)
+                    .put("on", connected)
+                    .put("t", System.currentTimeMillis());
+            prefs(c).edit().putString(PREF_BT_STATE, state.toString()).apply();
+        } catch (JSONException ignored) {
+            // 상태 표시용 부가 정보다. 실패해도 기록·알림에는 영향이 없다.
+        }
+    }
+
+    /** 마지막 블루투스 이벤트. 한 번도 없었으면 null. */
+    static JSONObject btState(Context c) {
+        String raw = prefs(c).getString(PREF_BT_STATE, "");
+        if (raw.isEmpty()) return null;
+        try {
+            return new JSONObject(raw);
+        } catch (JSONException e) {
+            return null;
+        }
+    }
+
+    /**
+     * 현재 차량이 연결돼 있는가 (= 아직 차 안이다).
+     *
+     * <p>다른 차량의 이벤트는 무시한다. 두 대를 쓰면 방금 내린 차의 상태를 묻는
+     * 사람에게 다른 차의 연결 상태를 보여 주게 된다.
+     */
+    static boolean btConnected(Context c) {
+        JSONObject state = btState(c);
+        if (state == null) return false;
+        if (!activeVehicleId(c).equals(state.optString("v"))) return false;
+        return state.optBoolean("on", false);
     }
 
     /** 해당 차량·주차장 프로필 안에서 최근에 쓴 서로 다른 구역. 블루투스 알림 버튼용. */

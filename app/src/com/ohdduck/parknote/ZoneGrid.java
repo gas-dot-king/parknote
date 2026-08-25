@@ -25,6 +25,12 @@ class ZoneGrid {
     private static final int ROW_LABEL_WIDTH_DP = 34;
 
     /**
+     * 탭할 수 있는 칸의 최소 높이 (dp). res/values/dimens.xml의 touch_min과 같은 값이고,
+     * cellHeightDp를 단위 테스트에서 검증하려고 여기 상수로도 둔다.
+     */
+    static final int MIN_TOUCH_DP = 48;
+
+    /**
      * container를 비우고 격자를 새로 채운다.
      *
      * @param rows     층 라벨. 비어 있으면 1차원 목록으로 그린다.
@@ -87,7 +93,7 @@ class ZoneGrid {
         container.removeAllViews();
         if (zones == null || zones.length == 0) return;
         final int perRow = 4;
-        int height = dp(ctx, 42);
+        int height = dp(ctx, MIN_TOUCH_DP);
         LinearLayout row = null;
         for (int i = 0; i < zones.length; i++) {
             if (i % perRow == 0) row = addRow(ctx, container);
@@ -135,7 +141,8 @@ class ZoneGrid {
         b.setMinimumWidth(0);
         b.setStateListAnimator(null);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, height, 1f);
-        lp.setMargins(dp(ctx, 3), dp(ctx, 3), dp(ctx, 3), dp(ctx, 3));
+        int gutter = gutter(ctx);
+        lp.setMargins(gutter, gutter, gutter, gutter);
         b.setLayoutParams(lp);
         if (tap == null) b.setEnabled(false); // 온보딩 미리보기
         else b.setOnClickListener(v -> tap.onTap(zone, v));
@@ -153,21 +160,37 @@ class ZoneGrid {
 
     /** 마지막 줄이 덜 찼을 때 버튼 폭이 갑자기 커지지 않게 빈칸을 채운다. */
     private static void fillRow(Context ctx, LinearLayout row, int perRow, int height) {
+        int gutter = gutter(ctx);
         while (row.getChildCount() < perRow) {
             View spacer = new View(ctx);
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, height, 1f);
-            lp.setMargins(dp(ctx, 3), dp(ctx, 3), dp(ctx, 3), dp(ctx, 3));
+            lp.setMargins(gutter, gutter, gutter, gutter);
             row.addView(spacer, lp);
         }
     }
 
-    /** 구역이 많아질수록 칸을 낮춰 한 화면에 격자가 다 들어오게 한다 (dp 단위). */
-    private static int cellHeightDp(int cols, boolean grid, boolean compact) {
+    /** 섹션 머리글·목록 행과 같은 바깥 여백. 값은 dimens.xml이 정한다. */
+    private static int gutter(Context ctx) {
+        return ctx.getResources().getDimensionPixelSize(R.dimen.gutter);
+    }
+
+    /**
+     * 구역이 많아질수록 칸을 낮춰 한 화면에 격자가 다 들어오게 한다 (dp 단위).
+     *
+     * <p>단, 탭할 수 있는 칸은 구역이 몇 개든 {@link #MIN_TOUCH_DP} 아래로 내려가지
+     * 않는다. 마진은 히트 영역이 아니라서(LayoutParams의 height가 그대로 터치 타깃이다)
+     * 여백으로 벌충되지 않는다. 격자 칸은 이 앱에서 제일 많이 눌리는 곳이고, 그것도
+     * 운전 직후 한 손으로 눌린다. 화면에 다 안 들어오면 스크롤하면 되지만, 잘못 눌러
+     * 엉뚱한 구역이 기록되면 앱이 존재할 이유가 없어진다.
+     *
+     * <p>compact는 온보딩·구역 편집의 미리보기다. 거기서는 tap이 null이라 버튼이
+     * 아예 비활성이므로 터치 타깃 하한을 적용하지 않는다.
+     */
+    static int cellHeightDp(int cols, boolean grid, boolean compact) {
         if (compact) return cols <= 5 ? 26 : 20;
         if (!grid) return 58;
         if (cols <= 3) return 56;
-        if (cols <= 5) return 48;
-        return 40;
+        return cols <= 5 ? 52 : MIN_TOUCH_DP;
     }
 
     private static int cellTextSize(int cols, boolean grid, boolean compact) {

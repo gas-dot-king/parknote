@@ -42,6 +42,10 @@ public class BtReceiver extends BroadcastReceiver {
         String vehicleId = vehicle.optString("id");
         String car = vehicle.optString("n", ctx.getString(R.string.vehicle_default_name));
 
+        // 홈의 감지 상태 카드가 "시동 켜짐/꺼짐"을 여기서 읽는다. 알림을 띄우기
+        // 전에 적어 둬야 알림 경로가 어디서 빠져나가도 상태는 최신으로 남는다.
+        Store.setBtState(ctx, vehicleId, connected);
+
         NotificationManager nm =
                 (NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
         if (nm == null) return;

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 차가 있는 방향. 위쪽(0도)이 기준이고 코드가 회전시킨다. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="72dp"
+    android:height="72dp"
+    android:viewportWidth="72"
+    android:viewportHeight="72">
+    <path
+        android:fillColor="#1D222A"
+        android:pathData="M36,2 A34,34 0 1,1 36,70 A34,34 0 1,1 36,2 Z" />
+    <path
+        android:fillColor="#666E78"
+        android:pathData="M36,2 A34,34 0 1,1 36,70 A34,34 0 1,1 36,2 Z M36,4 A32,32 0 1,0 36,68 A32,32 0 1,0 36,4 Z" />
+    <path
+        android:fillColor="#F5D060"
+        android:pathData="M36,14 L52,52 L36,43 L20,52 Z" />
+</vector>

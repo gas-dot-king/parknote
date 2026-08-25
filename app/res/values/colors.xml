@@ -4,16 +4,53 @@
       Premium dark automotive palette.
       배경은 3단계 elevation(bg → card → button)으로 깊이를 만들고,
       accent는 주차 유도선 노랑을 warm gold로 정제했다.
-      border(stroke)를 없애고 색상 차이만으로 계층을 구분한다.
+
+      elevation'만'으로 계층을 나누려던 시도는 되돌렸다. 인접한 두 면의 대비가
+      bg↔card 1.10:1, card↔button 1.10:1 뿐이라 WCAG 1.4.11의 3:1에 한참 못 미친다.
+      어두운 테마에서 카드를 카드답게 어둡게 두는 한 면색만으로 3:1을 만드는 건
+      불가능하다(3:1을 채우려면 카드가 #5A6068쯤 돼야 한다). 그래서 경계는
+      다시 1dp outline이 맡고, 면색 차이는 깊이를 거드는 역할만 한다.
     -->
     <color name="bg">#0C0E12</color>
     <color name="card">#151920</color>
     <color name="button">#1D222A</color>
-    <color name="outline">#262D36</color>
+
+    <!-- 테두리 전용 토큰. bg 3.7:1 · card 3.4:1 · button 3.1:1 로 세 면 모두에서
+         3:1을 넘긴다. 글자색으로 쓰지 말 것 (그 용도는 text_disabled). -->
+    <color name="outline">#666E78</color>
+
     <color name="accent">#F0C030</color>
     <color name="accent_text">#F5D060</color>
     <color name="on_accent">#111315</color>
     <color name="text">#E8EAED</color>
-    <color name="subtext">#808890</color>
+
+    <!--
+      보조 글자. 대비의 기준은 bg가 아니라 button이다. 힌트 텍스트, 직접 입력 버튼,
+      기타 구역 칸처럼 button 배경 위에 얹히는 곳이 훨씬 많기 때문이다.
+      button 위에서 5.0:1로 본문 크기 AA(4.5:1)를 넘긴다. 여기서 더 어둡게 내리면
+      (#808890은 4.4:1) 어두운 주차장에서 '직접 입력'이 빈 판때기로 보인다.
+    -->
+    <color name="subtext">#8A9299</color>
+
+    <!-- 비활성 글자. AA 대상은 아니지만 button 위 2.6:1로, 눌리지 않는다는 건
+         알아보되 '글자가 아예 없는 고장난 버튼'으로는 보이지 않는 선. -->
+    <color name="text_disabled">#5A626B</color>
+
     <color name="icon_bg">#F0C030</color>
+
+    <!--
+      준비 상태 체크리스트의 신호색.
+
+      accent(골드)를 경고에 쓰지 않는다. 이 앱에서 골드는 "여기가 저장된 정보다"라는
+      뜻으로 이미 쓰이고 있어서, 같은 색으로 경고까지 하면 두 의미가 섞인다.
+      card 위에서 ok 9.1:1 / warn 7.6:1.
+    -->
+    <color name="ok">#5FD08A</color>
+    <color name="warn">#FF8A5B</color>
+
+    <!-- 하단 탭. 선택된 칸은 알약 배경 + accent 아이콘으로 두 번 구분한다. -->
+    <color name="nav_bg">#111419</color>
+    <color name="nav_active_bg">#2A2416</color>
+    <color name="nav_active">#F5D060</color>
+    <color name="nav_inactive">#8A9299</color>
 </resources>

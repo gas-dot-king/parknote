@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  기록 탭. 예전에는 이 목록이 setItems 다이얼로그였다. 삭제한 주차장·차량의
+  기록까지 전부 들어 있는데도 진입로가 설정 메뉴 다섯 번째 항목뿐이라
+  사실상 숨어 있던 화면이다.
+-->
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/tabHistory"
+    style="@style/TabScroll">
+
+    <LinearLayout style="@style/TabColumn">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="@dimen/gutter"
+            android:fontFamily="sans-serif-medium"
+            android:letterSpacing="-0.02"
+            android:text="@string/history_tab_title"
+            android:textColor="@color/text"
+            android:textSize="24sp" />
+
+        <TextView
+            android:id="@+id/historyAllHint"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="@dimen/gutter"
+            android:layout_marginRight="@dimen/gutter"
+            android:layout_marginTop="4dp"
+            android:fontFamily="sans-serif"
+            android:text="@string/history_tab_hint"
+            android:textColor="@color/subtext"
+            android:textSize="13sp" />
+
+        <LinearLayout
+            android:id="@+id/historyAllList"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:orientation="vertical" />
+    </LinearLayout>
+</ScrollView>

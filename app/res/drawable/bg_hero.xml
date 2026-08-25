@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  홈 히어로 카드. 벤치마크의 보라 그라디언트 자리를 우리 골드 계열로 옮겼다.
+
+  이 카드만 accent를 면으로 쓴다. 화면에서 제일 먼저 봐야 할 정보가 "어디에
+  댔는가" 하나뿐이라, 다른 카드와 같은 어두운 면에 두면 그 우선순위가 안 보인다.
+  면이 밝으므로 글자는 전부 on_accent(어두운 색)로 얹는다.
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <gradient
+        android:angle="315"
+        android:endColor="#C98A18"
+        android:startColor="#F5D060"
+        android:type="linear" />
+    <corners android:radius="@dimen/radius_card" />
+</shape>

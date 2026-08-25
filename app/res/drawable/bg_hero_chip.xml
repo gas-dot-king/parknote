@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 히어로 카드 안의 "기록 완료" 칩. 밝은 금색 면 위에 얹히므로 어두운 반투명. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <solid android:color="#26000000" />
+    <stroke
+        android:width="@dimen/stroke"
+        android:color="#40000000" />
+    <corners android:radius="999dp" />
+</shape>

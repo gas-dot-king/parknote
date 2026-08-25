@@ -9,6 +9,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.graphics.Typeface;
+import android.location.Location;
 import android.os.Build;
 import android.os.Bundle;
 import android.text.Spannable;
@@ -19,6 +20,7 @@ import android.view.Gravity;
 import android.view.HapticFeedbackConstants;
 import android.view.View;
 import android.view.WindowInsets;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -29,14 +31,18 @@ import org.json.JSONObject;
 import java.util.ArrayList;
 
 /**
- * 메인 화면. 구역 격자, 지금 주차한 곳, 나가기 전 체크, 최근 기록을 그린다.
+ * 탭 네 개(홈·기록·위치·설정)를 담는 화면.
  *
- * <p>설정과 편집 다이얼로그는 전부 별도 클래스로 나가 있다({@link RecordEditor},
+ * <p>홈 탭은 여기서 직접 그리고, 나머지 셋은 {@link HistoryTab}, {@link LocationTab},
+ * {@link SettingsTab}이 맡는다. 홈만 남긴 이유는 홈이 구역 격자·기록 저장과
+ * 얽혀 있어서 이 클래스가 이미 갖고 있는 상태(편집기 복원, 권한, 인텐트 처리)를
+ * 그대로 쓰는 게 자연스럽기 때문이다.
+ *
+ * <p>편집·설정 다이얼로그는 전부 별도 클래스로 나가 있다({@link RecordEditor},
  * {@link ProfileDialogs}, {@link VehicleDialogs}, {@link HabitDialogs},
  * {@link BackupFlow}, {@link LocationFilterDialogs}, {@link ZoneSettingsActivity}).
- * 여기 남은 건 화면을 그리는 일과, 그 다이얼로그들을 여는 일뿐이다.
  */
-public class MainActivity extends Activity implements ScreenHost {
+public class MainActivity extends Activity implements ScreenHost, Tabs.Listener {
 
     static final String EXTRA_EDIT_RECORD_ID = "edit_record_id";
 
@@ -46,14 +52,30 @@ public class MainActivity extends Activity implements ScreenHost {
 
     private static final String STATE_PENDING_EDIT = "pending_edit_record_id";
     private static final String STATE_OPEN_RECORD = "open_record_id";
+    private static final String STATE_TAB = "selected_tab";
 
+    private Tabs tabs;
+    private HistoryTab historyTab;
+    private LocationTab locationTab;
+    private SettingsTab settingsTab;
+
+    // 홈 탭
+    private View heroCard;
+    private TextView heroLabel;
+    private ImageView heroArt;
     private TextView statusZone;
     private TextView statusTime;
     private TextView statusMeta;
     private TextView btnProfile;
+    private View heroActions;
     private View btnEdit;
     private View btnDelete;
     private View btnTimer;
+    private View detectCard;
+    private TextView detectEngine;
+    private TextView detectEngineHint;
+    private TextView detectPlace;
+    private TextView detectPlaceHint;
     private LinearLayout grid;
     private LinearLayout etcGrid;
     private LinearLayout habitList;
@@ -62,6 +84,7 @@ public class MainActivity extends Activity implements ScreenHost {
     private int colorText;
     private int colorSubtext;
     private int colorAccent;
+    private int colorOnAccent;
     private Typeface medium;
 
     /** 알림·위젯에서 넘어온 "이 기록을 열어라" 요청. 화면이 준비된 뒤 처리한다. */
@@ -89,11 +112,18 @@ public class MainActivity extends Activity implements ScreenHost {
         cacheColors();
         bindViews();
 
+        historyTab = new HistoryTab(this, this::openRecordEditor);
+        locationTab = new LocationTab(this, () -> tabs.select(Tabs.HOME));
+        settingsTab = new SettingsTab(this, this);
+        tabs = new Tabs(this, this);
+
+        int startTab = Tabs.HOME;
         if (savedInstanceState != null) {
             pendingEditRecordId = savedInstanceState.getString(STATE_PENDING_EDIT);
             // 회전 전에 열려 있던 편집기를 다시 연다. 예전에는 그냥 사라졌다.
             String reopen = savedInstanceState.getString(STATE_OPEN_RECORD);
             if (reopen != null) pendingEditRecordId = reopen;
+            startTab = savedInstanceState.getInt(STATE_TAB, Tabs.HOME);
         }
         handleNavigationIntent(getIntent());
         rebuildZoneGrids();
@@ -101,6 +131,7 @@ public class MainActivity extends Activity implements ScreenHost {
         requestNeededPermissions();
         Reminders.scheduleAll(this);
         ParkingTimers.scheduleAll(this);
+        tabs.select(startTab);
         render();
         openPendingRecordEditor();
     }
@@ -109,6 +140,8 @@ public class MainActivity extends Activity implements ScreenHost {
         // Android 15+ 강제 엣지-투-엣지: 시스템 바 높이만큼 여백 확보.
         // 가로 방향도 함께 본다. 가로 모드나 디스플레이 컷아웃이 있는 기기에서
         // 좌우 인셋을 빼먹으면 버튼이 컷아웃 아래로 들어간다.
+        // 하단 인셋은 이제 탭 바가 받는다 — 탭 바가 화면 맨 아래에 있으므로
+        // 여기서 먹지 않으면 제스처 바 아래로 탭이 깔린다.
         if (Build.VERSION.SDK_INT < 35) return;
         findViewById(R.id.root).setOnApplyWindowInsetsListener((v, insets) -> {
             android.graphics.Insets bars = insets.getInsets(WindowInsets.Type.systemBars());
@@ -121,17 +154,27 @@ public class MainActivity extends Activity implements ScreenHost {
         colorText = getColor(R.color.text);
         colorSubtext = getColor(R.color.subtext);
         colorAccent = getColor(R.color.accent_text);
+        colorOnAccent = getColor(R.color.on_accent);
         medium = Typeface.create("sans-serif-medium", Typeface.NORMAL);
     }
 
     private void bindViews() {
+        heroCard = findViewById(R.id.heroCard);
+        heroLabel = findViewById(R.id.heroLabel);
+        heroArt = findViewById(R.id.heroArt);
         statusZone = findViewById(R.id.statusZone);
         statusTime = findViewById(R.id.statusTime);
         statusMeta = findViewById(R.id.statusMeta);
         btnProfile = findViewById(R.id.btnProfile);
+        heroActions = findViewById(R.id.heroActions);
         btnEdit = findViewById(R.id.btnEdit);
         btnDelete = findViewById(R.id.btnDelete);
         btnTimer = findViewById(R.id.btnTimer);
+        detectCard = findViewById(R.id.detectCard);
+        detectEngine = findViewById(R.id.detectEngine);
+        detectEngineHint = findViewById(R.id.detectEngineHint);
+        detectPlace = findViewById(R.id.detectPlace);
+        detectPlaceHint = findViewById(R.id.detectPlaceHint);
         grid = findViewById(R.id.grid);
         etcGrid = findViewById(R.id.etcGrid);
         habitList = findViewById(R.id.habitList);
@@ -144,14 +187,17 @@ public class MainActivity extends Activity implements ScreenHost {
             if (latest != null) RecordEditor.showTimerOnly(this, this, latest.optString("id"));
         });
         btnProfile.setOnClickListener(v -> ProfileDialogs.showPicker(this, this));
-        findViewById(R.id.btnSettings).setOnClickListener(v -> showSettingsMenu());
-        findViewById(R.id.statusCard).setOnLongClickListener(v -> {
+        findViewById(R.id.btnSettings).setOnClickListener(v -> tabs.select(Tabs.SETTINGS));
+        heroCard.setOnLongClickListener(v -> {
             editLatestRecord();
             return true;
         });
+        detectCard.setContentDescription(getString(R.string.cd_detect_card));
+        detectCard.setOnClickListener(v -> tabs.select(Tabs.SETTINGS));
         findViewById(R.id.btnCustom).setOnClickListener(v -> showCustomInput());
         findViewById(R.id.btnEditZones).setOnClickListener(v -> openZoneSettings());
         findViewById(R.id.btnAddHabit).setOnClickListener(v -> HabitDialogs.showAdd(this, this));
+        findViewById(R.id.btnAllHistory).setOnClickListener(v -> tabs.select(Tabs.HISTORY));
     }
 
     @Override
@@ -160,6 +206,8 @@ public class MainActivity extends Activity implements ScreenHost {
         setIntent(intent);
         handleNavigationIntent(intent);
         rebuildZoneGrids();
+        // 알림·위젯에서 들어오면 방금 저장한 기록을 보러 온 것이다. 홈으로 되돌린다.
+        if (tabs != null) tabs.select(Tabs.HOME);
         render();
         openPendingRecordEditor();
     }
@@ -170,12 +218,15 @@ public class MainActivity extends Activity implements ScreenHost {
         registerReceiver(clockTick, new IntentFilter(Intent.ACTION_TIME_TICK));
         ParkingTimers.scheduleAll(this);
         render(); // "n시간 전" 표시, 위젯에서 저장한 기록, 날짜 변경 갱신
+        // 권한·배터리 설정은 시스템 화면에 다녀오면 바뀌어 있다. 돌아올 때마다 다시 본다.
+        if (tabs.current() == Tabs.LOCATION) locationTab.onShow();
     }
 
     @Override
     protected void onPause() {
         super.onPause();
         unregisterReceiver(clockTick);
+        locationTab.onHide(); // 나침반 센서는 화면이 안 보이면 반드시 끈다
     }
 
     @Override
@@ -183,6 +234,20 @@ public class MainActivity extends Activity implements ScreenHost {
         super.onSaveInstanceState(out);
         out.putString(STATE_PENDING_EDIT, pendingEditRecordId);
         out.putString(STATE_OPEN_RECORD, openRecordId);
+        out.putInt(STATE_TAB, tabs == null ? Tabs.HOME : tabs.current());
+    }
+
+    // ---------- Tabs.Listener ----------
+
+    @Override
+    public void onTabChanged(int tab) {
+        // 보이지 않는 탭은 그리지 않는다. 네 화면이 항상 인플레이트돼 있어서
+        // 전부 그리면 탭 하나 바꿀 때마다 기록 전체를 다시 만들게 된다.
+        if (tab == Tabs.HISTORY) historyTab.render();
+        else if (tab == Tabs.SETTINGS) settingsTab.render();
+
+        if (tab == Tabs.LOCATION) locationTab.onShow();
+        else locationTab.onHide();
     }
 
     // ---------- ScreenHost ----------
@@ -191,6 +256,9 @@ public class MainActivity extends Activity implements ScreenHost {
     public void refresh(boolean zonesChanged) {
         if (zonesChanged) rebuildZoneGrids();
         render();
+        // 지금 보고 있는 탭도 같이 갱신한다. 예를 들어 설정 탭에서 차량을 바꾸면
+        // 그 화면의 부제("블루투스 등록됨")가 바로 따라와야 한다.
+        onTabChanged(tabs.current());
     }
 
     @Override
@@ -270,6 +338,8 @@ public class MainActivity extends Activity implements ScreenHost {
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] results) {
         super.onRequestPermissionsResult(requestCode, permissions, results);
         LocationFilterDialogs.handlePermissionResult(this, requestCode, permissions, results);
+        // 준비 상태 카드가 방금의 허용/거부를 바로 반영해야 한다.
+        if (tabs != null && tabs.current() == Tabs.SETTINGS) settingsTab.render();
     }
 
     // ---------- 주차 ----------
@@ -322,65 +392,7 @@ public class MainActivity extends Activity implements ScreenHost {
                 .show();
     }
 
-    // ---------- 설정 ----------
-
-    private void showSettingsMenu() {
-        String state = getString(Store.locationFilterOn(this)
-                ? R.string.state_on : R.string.state_off);
-        String[] items = {
-                getString(R.string.settings_switch_profile, Store.activeProfileName(this)),
-                getString(R.string.settings_manage_profile),
-                getString(R.string.settings_switch_vehicle, Store.activeVehicleName(this)),
-                getString(R.string.settings_manage_vehicle),
-                getString(R.string.settings_all_history),
-                getString(R.string.settings_location_filter, state),
-                getString(R.string.settings_backup)};
-        new AlertDialog.Builder(this)
-                .setTitle(getString(R.string.settings_title, getString(R.string.app_name)))
-                .setItems(items, (d, which) -> {
-                    if (which == 0) ProfileDialogs.showPicker(this, this);
-                    else if (which == 1) ProfileDialogs.showCurrentOptions(this, this);
-                    else if (which == 2) VehicleDialogs.showPicker(this, this);
-                    else if (which == 3) VehicleDialogs.showCurrentOptions(this, this);
-                    else if (which == 4) showAllParkingHistory();
-                    else if (which == 5) LocationFilterDialogs.showMenu(this);
-                    else BackupFlow.showMenu(this);
-                })
-                .setNegativeButton(R.string.action_close, null)
-                .show();
-    }
-
-    /** 삭제된 주차장·차량에 속한 기록까지 포함해 개별 편집기로 연다. */
-    private void showAllParkingHistory() {
-        JSONArray history = Store.history(this);
-        if (history.length() == 0) {
-            Toast.makeText(this, R.string.history_empty, Toast.LENGTH_SHORT).show();
-            return;
-        }
-        String[] items = new String[history.length()];
-        for (int i = 0; i < history.length(); i++) {
-            JSONObject record = history.optJSONObject(i);
-            if (record == null) {
-                items[i] = getString(R.string.history_unknown);
-                continue;
-            }
-            items[i] = getString(R.string.history_row,
-                    record.optString("z", getString(R.string.record_label_zone)),
-                    Store.recordProfileName(this, record),
-                    Store.recordVehicleName(this, record),
-                    Store.formatFull(record.optLong("t", 0)));
-        }
-        new AlertDialog.Builder(this)
-                .setTitle(R.string.settings_all_history)
-                .setItems(items, (d, which) -> {
-                    JSONObject record = history.optJSONObject(which);
-                    if (record != null) openRecordEditor(record.optString("id"));
-                })
-                .setNegativeButton(R.string.action_close, null)
-                .show();
-    }
-
-    // ---------- 렌더링 ----------
+    // ---------- 홈 렌더링 ----------
 
     private void render() {
         JSONArray h = Store.activeHistory(this);
@@ -388,33 +400,64 @@ public class MainActivity extends Activity implements ScreenHost {
         btnProfile.setText(getString(R.string.profile_chip, Store.activeProfileName(this)));
 
         if (h.length() == 0) {
-            statusZone.setText(getString(R.string.empty_location));
-            statusZone.setTextColor(colorSubtext);
-            statusTime.setText(getString(R.string.status_empty_hint,
-                    Store.activeVehicleName(this)));
-            statusMeta.setVisibility(View.GONE);
-            btnEdit.setVisibility(View.INVISIBLE);
-            btnDelete.setVisibility(View.INVISIBLE);
-            btnTimer.setVisibility(View.GONE);
+            renderHeroEmpty();
         } else {
             JSONObject latest = h.optJSONObject(0);
             currentZone = latest.optString("z", "?");
-            long t = latest.optLong("t", 0);
-            statusZone.setText(currentZone);
-            statusZone.setTextColor(colorAccent);
-            statusTime.setText(getString(R.string.status_time,
-                    Store.formatFull(t), Store.formatRelative(t)));
-            statusMeta.setText(statusMeta(latest));
-            statusMeta.setVisibility(View.VISIBLE);
-            btnEdit.setVisibility(View.VISIBLE);
-            btnDelete.setVisibility(View.VISIBLE);
-            btnTimer.setVisibility(View.VISIBLE);
+            renderHeroSaved(latest, currentZone);
         }
 
         ZoneGrid.highlight(this, grid, currentZone, colorText);
         ZoneGrid.highlight(this, etcGrid, currentZone, colorSubtext);
+        renderDetectCard();
         renderHabits();
         renderHistory(h);
+    }
+
+    /**
+     * 기록이 있을 때의 히어로. 금색 면 + 자동차 그림.
+     *
+     * <p>이 카드만 accent를 면으로 쓴다. "차를 어디에 뒀는가"가 화면에서 유일하게
+     * 즉시 읽혀야 하는 정보라서, 다른 카드와 같은 어두운 면에 두면 우선순위가 안 보인다.
+     * 면이 밝으므로 글자는 전부 on_accent(어두운 색)로 뒤집는다.
+     */
+    private void renderHeroSaved(JSONObject latest, String zone) {
+        long t = latest.optLong("t", 0);
+        heroCard.setBackgroundResource(R.drawable.bg_hero);
+        heroArt.setVisibility(View.VISIBLE);
+
+        heroLabel.setText(R.string.hero_saved_label);
+        heroLabel.setTextColor(colorOnAccent);
+        statusZone.setText(zone);
+        statusZone.setTextColor(colorOnAccent);
+        statusTime.setText(getString(R.string.status_time,
+                Store.formatFull(t), Store.formatRelative(t)));
+        statusTime.setTextColor(colorOnAccent);
+        statusMeta.setText(statusMeta(latest));
+        statusMeta.setTextColor(colorOnAccent);
+        statusMeta.setVisibility(View.VISIBLE);
+
+        heroActions.setVisibility(View.VISIBLE);
+        btnEdit.setVisibility(View.VISIBLE);
+        btnDelete.setVisibility(View.VISIBLE);
+        btnTimer.setVisibility(View.VISIBLE);
+    }
+
+    /** 기록이 없을 때. 금색은 "저장됨"의 신호라, 저장된 게 없을 때 칠하면 거짓말이 된다. */
+    private void renderHeroEmpty() {
+        heroCard.setBackgroundResource(R.drawable.bg_hero_empty);
+        heroArt.setVisibility(View.GONE);
+
+        heroLabel.setText(R.string.hero_empty_label);
+        heroLabel.setTextColor(colorSubtext);
+        statusZone.setText(getString(R.string.empty_location));
+        statusZone.setTextColor(colorSubtext);
+        statusTime.setText(getString(R.string.status_empty_hint,
+                Store.activeVehicleName(this)));
+        statusTime.setTextColor(colorSubtext);
+        statusMeta.setVisibility(View.GONE);
+
+        heroActions.setVisibility(View.GONE);
     }
 
     private CharSequence statusMeta(JSONObject latest) {
@@ -429,6 +472,90 @@ public class MainActivity extends Activity implements ScreenHost {
                     .append(" · ").append(Store.formatFull(due));
         }
         return meta;
+    }
+
+    /**
+     * 감지 상태 카드 — "왜 알림이 안 왔지"에 앱 안에서 답한다.
+     *
+     * <p>왼쪽은 시동(차량 블루투스 연결), 오른쪽은 위치 판정. 둘 다 자동 알림이
+     * 뜨거나 안 뜨는 이유 그 자체라, 지금까지는 알림이 떴을 때만 간접적으로
+     * 드러났고 안 떴을 때는 확인할 방법이 아예 없었다.
+     */
+    private void renderDetectCard() {
+        renderEngineState();
+        renderPlaceState();
+    }
+
+    private void renderEngineState() {
+        String btName = Store.vehicleBtName(this, Store.activeVehicleId(this));
+        if (btName == null || btName.trim().isEmpty()) {
+            // 블루투스를 비워 둔 차량은 "수동 기록 전용"이라는 정당한 설정이다.
+            detectEngine.setText(R.string.detect_engine_unknown);
+            detectEngine.setTextColor(colorSubtext);
+            detectEngineHint.setText(R.string.detect_engine_manual);
+            return;
+        }
+        JSONObject state = Store.btState(this);
+        if (state == null) {
+            detectEngine.setText(R.string.detect_engine_unknown);
+            detectEngine.setTextColor(colorSubtext);
+            detectEngineHint.setText(R.string.detect_engine_never);
+            return;
+        }
+        boolean connected = Store.btConnected(this);
+        detectEngine.setText(connected
+                ? R.string.detect_engine_on : R.string.detect_engine_off);
+        detectEngine.setTextColor(connected ? colorAccent : colorText);
+        detectEngineHint.setText(connected
+                ? getString(R.string.detect_engine_on_hint)
+                : getString(R.string.detect_engine_off_hint,
+                        Store.formatRelative(state.optLong("t", 0))));
+    }
+
+    private void renderPlaceState() {
+        if (!Store.locationFilterOn(this)) {
+            detectPlace.setText(R.string.detect_place_off);
+            detectPlace.setTextColor(colorSubtext);
+            detectPlaceHint.setText(R.string.detect_place_off_hint);
+            return;
+        }
+        if (!Store.anyProfileHasCoords(this)) {
+            detectPlace.setText(R.string.detect_place_none);
+            detectPlace.setTextColor(colorSubtext);
+            detectPlaceHint.setText(R.string.detect_place_normal);
+            return;
+        }
+        Location fix = Nearby.lastFix(this);
+        if (fix == null) {
+            // 좌표를 모르면 판정을 포기하고 평소대로 알린다 (Nearby의 원칙).
+            detectPlace.setText(R.string.detect_place_unknown);
+            detectPlace.setTextColor(colorSubtext);
+            detectPlaceHint.setText(R.string.detect_place_normal);
+            return;
+        }
+        double lat = fix.getLatitude();
+        double lon = fix.getLongitude();
+        JSONObject near = Store.profileNear(this, lat, lon);
+        if (near != null) {
+            detectPlace.setText(getString(R.string.detect_place_known,
+                    near.optString("n", getString(R.string.profile_default_name))));
+            detectPlace.setTextColor(colorAccent);
+            detectPlaceHint.setText(R.string.detect_place_normal);
+            return;
+        }
+        detectPlace.setText(R.string.detect_place_away);
+        detectPlace.setTextColor(colorText);
+        String name = Store.nearestProfileName(this, lat, lon);
+        double meters = Store.nearestProfileMeters(this, lat, lon);
+        detectPlaceHint.setText(name == null || meters < 0
+                ? getString(R.string.detect_place_normal)
+                : getString(R.string.detect_place_distance, name, formatDistance(meters)));
+    }
+
+    private String formatDistance(double meters) {
+        return meters < 1000
+                ? getString(R.string.location_distance_m, (int) Math.round(meters))
+                : getString(R.string.location_distance_km, meters / 1000.0);
     }
 
     private void renderHabits() {
@@ -531,8 +658,18 @@ public class MainActivity extends Activity implements ScreenHost {
         return sb;
     }
 
+    /** 홈에는 현재 주차장×차량의 최근 5개만. 전체는 기록 탭이 맡는다. */
     private void renderHistory(JSONArray h) {
         historyList.removeAllViews();
+        if (h.length() == 0) {
+            TextView empty = new TextView(this);
+            empty.setText(R.string.history_empty);
+            empty.setTextSize(13);
+            empty.setTextColor(colorSubtext);
+            empty.setPadding(dp(8), dp(8), dp(8), dp(8));
+            historyList.addView(empty);
+            return;
+        }
         for (int i = 0; i < h.length() && i < HISTORY_SHOWN; i++) {
             JSONObject e = h.optJSONObject(i);
             if (e == null) continue;
@@ -578,27 +715,6 @@ public class MainActivity extends Activity implements ScreenHost {
                     e.optString("z", getString(R.string.record_label_zone))));
             historyList.addView(row);
         }
-
-        // 예전에는 전체 기록으로 가는 길이 설정 메뉴 다섯 번째 항목뿐이었다.
-        // 최근 목록이 5개에서 잘리는 바로 그 자리에 통로를 둔다.
-        if (Store.history(this).length() > 0) historyList.addView(allHistoryRow());
-    }
-
-    private View allHistoryRow() {
-        TextView more = new TextView(this);
-        int total = Store.history(this).length();
-        more.setText(getString(R.string.all_history_link, total));
-        more.setTextSize(13);
-        more.setTextColor(colorAccent);
-        more.setGravity(Gravity.CENTER_VERTICAL);
-        more.setPadding(dp(14), 0, dp(14), 0);
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(48));
-        lp.setMargins(dp(3), dp(3), dp(3), dp(3));
-        more.setLayoutParams(lp);
-        more.setBackgroundResource(R.drawable.bg_button);
-        more.setOnClickListener(v -> showAllParkingHistory());
-        return more;
     }
 
     /** 습관·기록 목록이 공유하는 행 껍데기. */
@@ -609,9 +725,18 @@ public class MainActivity extends Activity implements ScreenHost {
         row.setBackgroundResource(R.drawable.bg_button);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, height);
-        lp.setMargins(dp(3), dp(3), dp(3), dp(3));
+        int gutter = gutter();
+        lp.setMargins(gutter, gutter, gutter, gutter);
         row.setLayoutParams(lp);
         return row;
+    }
+
+    /**
+     * 섹션 머리글(tab_home.xml)과 구역 격자(ZoneGrid)가 함께 쓰는 바깥 여백.
+     * 여기만 다른 값을 쓰면 머리글과 그 아래 목록의 왼쪽 끝이 어긋난다.
+     */
+    private int gutter() {
+        return getResources().getDimensionPixelSize(R.dimen.gutter);
     }
 
     private int dp(int v) {

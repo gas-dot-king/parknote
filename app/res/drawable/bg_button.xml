@@ -1,10 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  구역 칸·목록 행·입력 필드가 모두 쓰는 바탕.
+
+  stroke가 없으면 button(#1D222A)과 card(#151920)가 1.10:1이라, 다이얼로그 안의
+  EditText는 눌러서 커서가 뜰 때까지 어디가 입력칸인지 알 수 없게 된다.
+
+  ripple은 이 앱에서 유일한 누름 피드백이다(구역 칸은 stateListAnimator를 전부
+  꺼 둔다). 알파를 낮추면 주차장에서 탭이 먹었는지 알 수 없어진다.
+-->
 <ripple xmlns:android="http://schemas.android.com/apk/res/android"
-    android:color="#20F0C030">
+    android:color="#40F0C030">
     <item>
         <shape>
             <solid android:color="@color/button" />
-            <corners android:radius="12dp" />
+            <stroke
+                android:width="@dimen/stroke"
+                android:color="@color/outline" />
+            <corners android:radius="@dimen/radius_control" />
         </shape>
     </item>
 </ripple>
