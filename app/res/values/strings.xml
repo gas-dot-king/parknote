@@ -159,24 +159,29 @@
     <string name="timer_channel">%1$s · 출차 시간 알림</string>
 
     <!-- ── 구역 편집 ──────────────────────────────────────────────────────── -->
-    <string name="zone_edit_guide">한 줄에 하나씩, 입력한 순서대로 표시돼요.\n예: 층 B1·B2 + 구역 A·B → B1-A, B1-B, B2-A, B2-B\n홈 위젯에는 앞 6칸만 표시되므로 짧은 이름을 권장해요.</string>
-    <string name="zone_rows_label">층 · 선택 (최대 %1$d개)</string>
-    <string name="zone_rows_hint">비워 두면 층 없이 구역 버튼만 표시해요</string>
-    <string name="zone_rows_cd">층, 한 줄에 하나, 비워 둘 수 있음</string>
-    <string name="zone_cols_label">구역 (최대 %1$d개, 층이 없으면 %2$d개)</string>
-    <string name="zone_cols_hint">예: A</string>
-    <string name="zone_cols_cd">구역, 한 줄에 하나</string>
-    <string name="zone_etc_label">기타 구역 · 작은 버튼 (선택)</string>
-    <string name="zone_etc_hint">비워 두면 기타 버튼을 숨겨요</string>
-    <string name="zone_etc_cd">기타 구역, 한 줄에 하나, 비워 둘 수 있음</string>
+    <!-- 블록 편집 -->
+    <string name="zone_blocks_guide">블록을 눌러 이름을 바꾸거나 지우고, 길게 눌러 끌면 순서를 바꿀 수 있어요.
+층과 구역을 조합해 실제 버튼이 만들어져요 (층 B1·B2 + 구역 A·B → B1-A, B1-B, B2-A, B2-B).</string>
+    <string name="zone_rows_blocks_label">층 %1$d / %2$d</string>
+    <string name="zone_cols_blocks_label">구역 %1$d / %2$d</string>
+    <string name="zone_etc_blocks_label">기타 구역 %1$d / %2$d</string>
+    <string name="zone_rows_note">비워 두면 층 없이 구역 버튼만 표시해요.</string>
+    <string name="zone_cols_note">하나 이상 있어야 해요. 홈 위젯에는 앞 6칸만 나오므로 짧은 이름을 권장해요.</string>
+    <string name="zone_etc_note">격자 밖의 자리예요. 작은 버튼으로 따로 표시돼요.</string>
+    <string name="zone_etc_blocks_name">기타 구역</string>
+    <string name="zone_block_cd">%1$s, 눌러서 수정, 길게 눌러 이동</string>
+    <string name="zone_block_add">블록 추가</string>
+    <string name="zone_block_hint">예: B1</string>
+    <string name="zone_block_add_title">%1$s 추가</string>
+    <string name="zone_block_edit_title">%1$s 수정</string>
     <string name="zone_preview">미리보기</string>
     <string name="zone_preview_count">버튼 %1$d개</string>
     <string name="zone_preview_etc">%1$s · 기타 %2$d개</string>
-    <string name="zone_preview_clipped">%1$s\n상한을 넘은 줄은 미리보기에서 생략했어요</string>
     <string name="zone_required">구역을 하나 이상 입력해 주세요</string>
     <string name="zone_name_too_long">구역 이름은 %1$d자까지 입력할 수 있어요</string>
     <string name="zone_duplicate">중복된 구역이 있어요: %1$s</string>
-    <string name="zone_group_too_many">각 목록은 %1$d개까지 저장할 수 있어요</string>
+    <!-- Store.setGrid의 최후 방어선. 화면에서 상한을 넘길 수 없게 막지만,
+         온보딩·백업 복원처럼 다른 경로로 들어온 값도 여기서 걸린다. -->
     <string name="zone_limit">%1$s은 %2$d개까지 만들 수 있어요</string>
     <string name="zone_rows_name">층</string>
     <string name="zone_cols_name">구역</string>
@@ -317,8 +322,8 @@
     <string name="onboarding_vehicle_hint">예: 내 차, 아빠 차</string>
     <string name="onboarding_bt_label">차 블루투스</string>
     <string name="onboarding_bt_body">탭하면 페어링된 기기 목록에서 고를 수 있어요. 지금 차에 안 타고 있다면 비워 두고 나중에 설정에서 골라도 돼요.</string>
-    <string name="onboarding_perm_title">마지막이에요</string>
-    <string name="onboarding_perm_body">아래 권한만 쓰고, 어떤 정보도 기기 밖으로 내보내지 않아요.</string>
+    <string name="onboarding_perm_title">권한 두 개만 먼저</string>
+    <string name="onboarding_perm_body">이 둘이 없으면 차에서 내릴 때 자동으로 알려 줄 수가 없어요.\n아래 권한만 쓰고, 어떤 정보도 기기 밖으로 내보내지 않아요.</string>
     <string name="onboarding_perm_notify">알림</string>
     <string name="onboarding_perm_notify_detail">주차 위치를 남길지 묻고, 출차 시간을 알려 줘요.</string>
     <string name="onboarding_perm_bt">근처 기기 (블루투스)</string>

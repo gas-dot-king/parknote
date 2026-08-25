@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- 코드로 만든 뷰에 붙이는 고정 id.
-     프레임워크가 회전 때 입력값을 자동으로 저장·복원하려면 id가 재생성 사이에
-     그대로여야 한다. View.generateViewId()는 매번 값이 달라져서 쓸 수 없다. -->
-<resources>
-    <item name="zoneRows" type="id" />
-    <item name="zoneCols" type="id" />
-    <item name="zoneEtc" type="id" />
-</resources>

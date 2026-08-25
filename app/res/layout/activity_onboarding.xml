@@ -2,19 +2,20 @@
 <!--
   첫 실행 안내의 껍데기.
 
-  예전에는 이 화면 전체를 자바로 만들고 단계가 바뀔 때마다 setContentView를 다시
-  불렀다. PhoneWindow.setContentView(View)는 FEATURE_CONTENT_TRANSITIONS가 꺼져
-  있을 때만 이전 뷰를 지우는데, 그 기능이 켜진 테마(일부 OEM 스킨)에서는 옛 트리가
-  남은 채 새 트리가 위에 얹혀 화면이 비어 보였다.
+  단계가 바뀌면 onboardingBody의 자식만 갈아 끼운다. 예전에는 화면 전체를 자바로
+  다시 만들어 setContentView를 또 불렀는데, PhoneWindow는 콘텐츠 전환 기능이 꺼져
+  있을 때만 이전 뷰를 지우므로 그 기능이 켜진 테마에서 화면이 겹쳤다.
 
-  이제 껍데기는 여기서 한 번만 인플레이트하고, 단계가 바뀌면 onboardingBody의
-  자식만 갈아 끼운다.
+  RelativeLayout인 이유: LinearLayout + layout_weight로 "본문은 남는 공간 전부,
+  버튼 줄은 아래 고정"을 만들었더니 실제 기기에서 가중치가 버튼 줄로 가서 본문
+  ScrollView가 높이 0으로 찌그러졌다(본문은 들어 있는데 화면에는 안 보였다).
+  여기서는 버튼 줄을 부모 아래에 붙이고 본문을 그 위 공간에 못 박으므로,
+  남는 공간을 누가 가져가는지를 두고 다툴 여지가 없다.
 -->
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/onboardingRoot"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
     android:paddingLeft="24dp"
     android:paddingTop="28dp"
     android:paddingRight="24dp"
@@ -24,30 +25,18 @@
         android:id="@+id/onboardingStep"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_alignParentTop="true"
         android:fontFamily="sans-serif-medium"
         android:letterSpacing="0.08"
         android:textColor="@color/subtext"
         android:textSize="11sp" />
 
-    <ScrollView
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_marginTop="6dp"
-        android:layout_weight="1"
-        android:fillViewport="true"
-        android:scrollbars="none">
-
-        <LinearLayout
-            android:id="@+id/onboardingBody"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical" />
-    </ScrollView>
-
+    <!-- 아래 고정. 본문이 아무리 길어도 이 줄은 늘 화면 안에 있다. -->
     <LinearLayout
+        android:id="@+id/onboardingNav"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
+        android:layout_alignParentBottom="true"
         android:gravity="center_vertical"
         android:orientation="horizontal">
 
@@ -59,8 +48,8 @@
             android:clickable="true"
             android:focusable="true"
             android:fontFamily="sans-serif"
-            android:minHeight="@dimen/touch_min"
             android:gravity="center_vertical"
+            android:minHeight="@dimen/touch_min"
             android:paddingLeft="12dp"
             android:paddingRight="20dp"
             android:textColor="@color/subtext"
@@ -68,7 +57,7 @@
 
         <View
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
+            android:layout_height="1dp"
             android:layout_weight="1" />
 
         <Button
@@ -84,4 +73,21 @@
             android:textColor="@color/on_accent"
             android:textSize="15sp" />
     </LinearLayout>
-</LinearLayout>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_above="@id/onboardingNav"
+        android:layout_below="@id/onboardingStep"
+        android:layout_marginTop="6dp"
+        android:layout_marginBottom="12dp"
+        android:fillViewport="true"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:id="@+id/onboardingBody"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical" />
+    </ScrollView>
+</RelativeLayout>

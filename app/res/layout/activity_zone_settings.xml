@@ -1,0 +1,217 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  구역 편집.
+
+  RelativeLayout인 이유는 온보딩과 같다: 저장/취소 줄을 화면 아래에 못 박고 본문을
+  그 위 공간에 채운다. LinearLayout + layout_weight로 같은 것을 만들었을 때 실제
+  기기에서 가중치가 버튼 줄로 가 본문이 높이 0으로 찌그러진 적이 있다.
+-->
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/zoneRoot"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <!-- 아래 고정 -->
+    <LinearLayout
+        android:id="@+id/zoneActions"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:background="@color/nav_bg"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingLeft="16dp"
+        android:paddingTop="10dp"
+        android:paddingRight="16dp"
+        android:paddingBottom="16dp">
+
+        <Button
+            android:id="@+id/zoneReset"
+            android:layout_width="wrap_content"
+            android:layout_height="@dimen/touch_min"
+            android:background="@drawable/bg_button"
+            android:fontFamily="sans-serif"
+            android:paddingLeft="18dp"
+            android:paddingRight="18dp"
+            android:stateListAnimator="@null"
+            android:text="@string/action_reset"
+            android:textAllCaps="false"
+            android:textColor="@color/subtext"
+            android:textSize="14sp" />
+
+        <View
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:layout_weight="1" />
+
+        <Button
+            android:id="@+id/zoneCancel"
+            android:layout_width="wrap_content"
+            android:layout_height="@dimen/touch_min"
+            android:layout_marginRight="8dp"
+            android:background="@drawable/bg_button"
+            android:fontFamily="sans-serif"
+            android:paddingLeft="18dp"
+            android:paddingRight="18dp"
+            android:stateListAnimator="@null"
+            android:text="@string/action_cancel"
+            android:textAllCaps="false"
+            android:textColor="@color/subtext"
+            android:textSize="14sp" />
+
+        <Button
+            android:id="@+id/zoneSave"
+            android:layout_width="wrap_content"
+            android:layout_height="@dimen/touch_min"
+            android:background="@drawable/bg_button_active"
+            android:fontFamily="sans-serif-medium"
+            android:paddingLeft="24dp"
+            android:paddingRight="24dp"
+            android:stateListAnimator="@null"
+            android:text="@string/action_save"
+            android:textAllCaps="false"
+            android:textColor="@color/on_accent"
+            android:textSize="15sp" />
+    </LinearLayout>
+
+    <ScrollView
+        android:id="@+id/zoneScroll"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_above="@id/zoneActions"
+        android:layout_alignParentTop="true"
+        android:fillViewport="true"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingLeft="16dp"
+            android:paddingTop="20dp"
+            android:paddingRight="16dp"
+            android:paddingBottom="20dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginLeft="@dimen/gutter"
+                android:fontFamily="sans-serif-medium"
+                android:letterSpacing="-0.02"
+                android:text="@string/zone_edit"
+                android:textColor="@color/text"
+                android:textSize="24sp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginLeft="@dimen/gutter"
+                android:layout_marginRight="@dimen/gutter"
+                android:layout_marginTop="6dp"
+                android:fontFamily="sans-serif"
+                android:lineSpacingMultiplier="1.25"
+                android:text="@string/zone_blocks_guide"
+                android:textColor="@color/subtext"
+                android:textSize="13sp" />
+
+            <!-- 층 -->
+            <TextView
+                android:id="@+id/rowsLabel"
+                style="@style/SectionTitle"
+                android:layout_marginTop="24dp" />
+
+            <TextView
+                android:id="@+id/rowsHint"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginLeft="@dimen/gutter"
+                android:layout_marginRight="@dimen/gutter"
+                android:layout_marginTop="2dp"
+                android:fontFamily="sans-serif"
+                android:text="@string/zone_rows_note"
+                android:textColor="@color/subtext"
+                android:textSize="12sp" />
+
+            <LinearLayout
+                android:id="@+id/rowsBlocks"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:orientation="vertical" />
+
+            <!-- 구역 -->
+            <TextView
+                android:id="@+id/colsLabel"
+                style="@style/SectionTitle"
+                android:layout_marginTop="22dp" />
+
+            <TextView
+                android:id="@+id/colsHint"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginLeft="@dimen/gutter"
+                android:layout_marginRight="@dimen/gutter"
+                android:layout_marginTop="2dp"
+                android:fontFamily="sans-serif"
+                android:text="@string/zone_cols_note"
+                android:textColor="@color/subtext"
+                android:textSize="12sp" />
+
+            <LinearLayout
+                android:id="@+id/colsBlocks"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:orientation="vertical" />
+
+            <!-- 기타 구역 -->
+            <TextView
+                android:id="@+id/etcLabel"
+                style="@style/SectionTitle"
+                android:layout_marginTop="22dp" />
+
+            <TextView
+                android:id="@+id/etcHint"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginLeft="@dimen/gutter"
+                android:layout_marginRight="@dimen/gutter"
+                android:layout_marginTop="2dp"
+                android:fontFamily="sans-serif"
+                android:text="@string/zone_etc_note"
+                android:textColor="@color/subtext"
+                android:textSize="12sp" />
+
+            <LinearLayout
+                android:id="@+id/etcBlocks"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:orientation="vertical" />
+
+            <!-- 실제로 생길 버튼 -->
+            <TextView
+                style="@style/SectionTitle"
+                android:layout_marginTop="26dp"
+                android:text="@string/zone_preview" />
+
+            <LinearLayout
+                android:id="@+id/zonePreview"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:orientation="vertical" />
+
+            <TextView
+                android:id="@+id/zonePreviewNote"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginLeft="@dimen/gutter"
+                android:layout_marginRight="@dimen/gutter"
+                android:layout_marginTop="8dp"
+                android:fontFamily="sans-serif"
+                android:textColor="@color/subtext"
+                android:textSize="12sp" />
+        </LinearLayout>
+    </ScrollView>
+</RelativeLayout>
