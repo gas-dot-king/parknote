@@ -9,6 +9,7 @@
 *.jks
 *.keystore
 /.vscode/
+/.idea/
 /.gradle/
 local.properties
 *.iml
