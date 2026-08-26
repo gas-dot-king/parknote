@@ -3,11 +3,14 @@ package com.ohdduck.parknote;
 import android.app.Activity;
 import android.content.ClipData;
 import android.graphics.Typeface;
+import android.os.Bundle;
 import android.text.TextUtils;
 import android.view.DragEvent;
 import android.view.Gravity;
 import android.view.HapticFeedbackConstants;
+import android.view.KeyEvent;
 import android.view.View;
+import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
@@ -36,6 +39,9 @@ class ZoneBlocks {
     static final int PER_ROW = 4;
 
     private static final int BLOCK_HEIGHT_DP = 56;
+    private static final int ACTION_MOVE_PREVIOUS =
+            R.id.accessibility_action_zone_move_previous;
+    private static final int ACTION_MOVE_NEXT = R.id.accessibility_action_zone_move_next;
 
     interface Listener {
         /** 블록을 탭했다. index 자리의 이름을 바꾸거나 지운다. */
@@ -70,7 +76,7 @@ class ZoneBlocks {
         for (int i = 0; i < cells; i++) {
             if (i % PER_ROW == 0) row = addRow(host, container);
             row.addView(i < count
-                    ? block(host, items.get(i), i, listener)
+                    ? block(host, container, items.get(i), i, count, listener)
                     : addBlock(host, listener));
         }
         // 마지막 줄이 덜 찼을 때 남은 블록이 갑자기 넓어지지 않게 빈칸을 채운다.
@@ -91,13 +97,15 @@ class ZoneBlocks {
         return row;
     }
 
-    private static View block(Activity host, String label, int index, Listener listener) {
+    private static View block(Activity host, LinearLayout container, String label,
+                              int index, int count, Listener listener) {
         TextView view = baseBlock(host, label);
         view.setTextColor(host.getColor(R.color.text));
         view.setBackgroundResource(R.drawable.bg_button);
         view.setContentDescription(host.getString(R.string.zone_block_cd, label));
 
         view.setOnClickListener(v -> listener.onEdit(index));
+        addNonTouchMoveActions(host, container, view, label, index, count, listener);
 
         // 끌어서 순서 바꾸기. 시작한 블록은 자기 자리를 반투명으로 비워 둬서
         // "지금 이걸 들고 있다"가 보이게 한다.
@@ -111,6 +119,87 @@ class ZoneBlocks {
 
         view.setOnDragListener((target, event) -> onDrag(host, target, event, index, listener));
         return view;
+    }
+
+    /** 드래그를 쓸 수 없는 키보드·스크린리더 사용자에게 같은 순서 변경 기능을 준다. */
+    private static void addNonTouchMoveActions(Activity host, LinearLayout container,
+                                                TextView view, String label, int index,
+                                                int count, Listener listener) {
+        view.setOnKeyListener((v, keyCode, event) -> {
+            if (event.getAction() != KeyEvent.ACTION_DOWN || event.getRepeatCount() != 0
+                    || (!event.isAltPressed() && !event.isCtrlPressed())) {
+                return false;
+            }
+            if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT && index > 0) {
+                move(host, container, v, label, index, index - 1, listener);
+                return true;
+            }
+            if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT && index < count - 1) {
+                move(host, container, v, label, index, index + 1, listener);
+                return true;
+            }
+            return false;
+        });
+
+        view.setAccessibilityDelegate(new View.AccessibilityDelegate() {
+            @Override
+            public void onInitializeAccessibilityNodeInfo(View hostView,
+                                                          AccessibilityNodeInfo info) {
+                super.onInitializeAccessibilityNodeInfo(hostView, info);
+                if (index > 0) {
+                    info.addAction(new AccessibilityNodeInfo.AccessibilityAction(
+                            ACTION_MOVE_PREVIOUS,
+                            host.getString(R.string.zone_move_previous)));
+                }
+                if (index < count - 1) {
+                    info.addAction(new AccessibilityNodeInfo.AccessibilityAction(
+                            ACTION_MOVE_NEXT, host.getString(R.string.zone_move_next)));
+                }
+            }
+
+            @Override
+            public boolean performAccessibilityAction(View hostView, int action,
+                                                      Bundle arguments) {
+                if (action == ACTION_MOVE_PREVIOUS && index > 0) {
+                    move(host, container, hostView, label, index, index - 1, listener);
+                    return true;
+                }
+                if (action == ACTION_MOVE_NEXT && index < count - 1) {
+                    move(host, container, hostView, label, index, index + 1, listener);
+                    return true;
+                }
+                return super.performAccessibilityAction(hostView, action, arguments);
+            }
+        });
+    }
+
+    private static void move(Activity host, LinearLayout container, View source,
+                             String label, int from, int to, Listener listener) {
+        boolean hadKeyboardFocus = source.hasFocus();
+        boolean hadAccessibilityFocus = source.isAccessibilityFocused();
+        listener.onMove(from, to);
+        // onMove가 removeAllViews→재렌더를 동기 실행한다. 새 블록이 붙은 다음 프레임에
+        // 논리적으로 같은 항목으로 포커스를 옮겨 연속 재정렬이 가능하게 한다.
+        container.post(() -> {
+            View moved = blockAt(container, to);
+            if (moved == null) return;
+            // 입력 포커스는 복원하되 스크린리더의 접근성 포커스를 강제로 빼앗지 않는다.
+            // 접근성 사용자는 아래 announce로 이동 결과를 듣고 탐색을 이어갈 수 있다.
+            if (hadKeyboardFocus || hadAccessibilityFocus) moved.requestFocus();
+            moved.announceForAccessibility(host.getString(
+                    R.string.zone_move_announce, label, to + 1));
+        });
+    }
+
+    private static View blockAt(LinearLayout container, int index) {
+        int rowIndex = index / PER_ROW;
+        int columnIndex = index % PER_ROW;
+        if (rowIndex < 0 || rowIndex >= container.getChildCount()) return null;
+        View row = container.getChildAt(rowIndex);
+        if (!(row instanceof LinearLayout)) return null;
+        LinearLayout rowLayout = (LinearLayout) row;
+        return columnIndex < rowLayout.getChildCount()
+                ? rowLayout.getChildAt(columnIndex) : null;
     }
 
     private static final String DRAG_LABEL = "zone-block";

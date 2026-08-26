@@ -10,10 +10,12 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 
 import org.json.JSONObject;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * "차에서 내린 이 자리가 어느 주차장인가"만 판정한다. 위치와 관련된 코드는 전부 여기 있다.
@@ -32,6 +34,9 @@ class Nearby {
 
     /** 이보다 오래된 좌표는 없는 것으로 친다. 어제 회사 좌표로 오늘 집을 판정하면 안 된다. */
     private static final long MAX_FIX_AGE_MS = 30 * 60 * 1000L;
+
+    /** 공급자 콜백 시각의 작은 오차는 허용하되 오래된 초기값은 fresh 결과로 받지 않는다. */
+    private static final long FRESH_FIX_TOLERANCE_NS = 5_000_000_000L;
 
     /** 판정 결과. profile이 null이면 "아는 주차장이 아니다", unknown이면 "알 수 없다". */
     static class Where {
@@ -154,7 +159,7 @@ class Nearby {
             // NETWORK 좌표까지 통째로 버리게 된다.
             try {
                 Location candidate = lm.getLastKnownLocation(provider);
-                if (candidate == null) continue;
+                if (!isValid(candidate)) continue;
                 if (best == null || candidate.getTime() > best.getTime()) best = candidate;
             } catch (SecurityException | IllegalArgumentException ignored) {
                 // 이 공급자만 건너뛴다
@@ -170,20 +175,41 @@ class Nearby {
         void onFix(Location fix);
     }
 
+    /** 진행 중인 단발 위치 요청. 탭이나 화면이 사라지면 반드시 취소한다. */
+    interface FixRequest {
+        void cancel();
+    }
+
+    private static final FixRequest COMPLETED_REQUEST = () -> { };
+
     /**
      * 주차장 좌표를 등록할 때 쓴다. 캐시된 좌표가 쓸 만하면 그대로 주고,
      * 없으면 앱이 떠 있는 동안 한 번만 새로 잡는다. 15초 안에 못 잡으면 포기한다.
      */
-    static void requestFix(Context c, FixCallback cb) {
-        Location cached = lastFix(c);
-        if (cached != null) {
-            cb.onFix(cached);
-            return;
+    static FixRequest requestFix(Context c, FixCallback cb) {
+        return requestFix(c, cb, true);
+    }
+
+    /**
+     * 캐시를 반환하지 않고 공급자에 실제 단발 측위를 요청한다.
+     * "현재 위치 다시 잡기"처럼 사용자가 명시적으로 갱신을 요구한 경로에서만 쓴다.
+     */
+    static FixRequest requestFreshFix(Context c, FixCallback cb) {
+        return requestFix(c, cb, false);
+    }
+
+    private static FixRequest requestFix(Context c, FixCallback cb, boolean allowCached) {
+        if (allowCached) {
+            Location cached = lastFix(c);
+            if (cached != null) {
+                cb.onFix(cached);
+                return COMPLETED_REQUEST;
+            }
         }
         LocationManager lm = (LocationManager) c.getSystemService(Context.LOCATION_SERVICE);
         if (lm == null || !hasForegroundPermission(c)) {
             cb.onFix(null);
-            return;
+            return COMPLETED_REQUEST;
         }
         // COARSE만 허용됐으면 GPS를 요청할 수 없다. 그대로 요청하면 SecurityException이
         // 나면서 "위치를 잡지 못했어요"로 끝나 버리므로, 처음부터 NETWORK만 본다.
@@ -195,36 +221,88 @@ class Nearby {
         }
         if (provider == null) {
             cb.onFix(null);
-            return;
+            return COMPLETED_REQUEST;
         }
 
-        final boolean[] done = {false};
-        LocationListener listener = new LocationListener() {
-            @Override public void onLocationChanged(Location location) {
-                if (done[0]) return;
-                done[0] = true;
-                stop(lm, this);
-                cb.onFix(location);
+        OneShotRequest request = new OneShotRequest(lm, provider, cb, !allowCached);
+        request.start();
+        return request;
+    }
+
+    /**
+     * LocationManager 콜백과 타임아웃을 한 객체가 소유하게 해 취소 경로를 빠뜨리지 않는다.
+     * 완료/취소 경쟁은 AtomicBoolean으로 한 번만 이기게 한다.
+     */
+    private static final class OneShotRequest implements FixRequest, LocationListener {
+        private final LocationManager manager;
+        private final String provider;
+        private final FixCallback callback;
+        private final boolean requireFresh;
+        private final long requestedAtElapsedNanos;
+        private final Handler main = new Handler(Looper.getMainLooper());
+        private final AtomicBoolean finished = new AtomicBoolean();
+        private final Runnable timeout = () -> finish(null, true);
+
+        private OneShotRequest(LocationManager manager, String provider, FixCallback callback,
+                               boolean requireFresh) {
+            this.manager = manager;
+            this.provider = provider;
+            this.callback = callback;
+            this.requireFresh = requireFresh;
+            this.requestedAtElapsedNanos = SystemClock.elapsedRealtimeNanos();
+        }
+
+        private void start() {
+            try {
+                manager.requestLocationUpdates(
+                        provider, 0L, 0f, this, Looper.getMainLooper());
+                if (!finished.get()) main.postDelayed(timeout, 15000L);
+            } catch (SecurityException | IllegalArgumentException e) {
+                finish(null, true);
             }
-
-            @Override public void onStatusChanged(String p, int status, Bundle extras) { }
-
-            @Override public void onProviderEnabled(String p) { }
-
-            @Override public void onProviderDisabled(String p) { }
-        };
-        try {
-            lm.requestLocationUpdates(provider, 0L, 0f, listener, Looper.getMainLooper());
-        } catch (SecurityException e) {
-            cb.onFix(null);
-            return;
         }
-        new Handler(Looper.getMainLooper()).postDelayed(() -> {
-            if (done[0]) return;
-            done[0] = true;
-            stop(lm, listener);
-            cb.onFix(null);
-        }, 15000L);
+
+        @Override
+        public void cancel() {
+            finish(null, false);
+        }
+
+        @Override
+        public void onLocationChanged(Location location) {
+            // 일부 공급자는 잘못된 좌표를 먼저 내보내기도 한다. 그런 값은 타임아웃까지
+            // 기다리되 UI나 저장 경로로 전달하지 않는다.
+            if (!isValid(location)) return;
+            if (requireFresh && location.getElapsedRealtimeNanos()
+                    < requestedAtElapsedNanos - FRESH_FIX_TOLERANCE_NS) return;
+            finish(location, true);
+        }
+
+        @Override public void onStatusChanged(String p, int status, Bundle extras) { }
+
+        @Override public void onProviderEnabled(String p) { }
+
+        @Override public void onProviderDisabled(String p) { }
+
+        private void finish(Location fix, boolean deliver) {
+            if (!finished.compareAndSet(false, true)) return;
+            main.removeCallbacks(timeout);
+            stop(manager, this);
+            if (deliver) callback.onFix(fix);
+        }
+    }
+
+    /** Location 객체가 실제 지구 좌표를 담고 있는지 확인한다. */
+    static boolean isValid(Location location) {
+        return location != null
+                && validCoordinates(location.getLatitude(), location.getLongitude());
+    }
+
+    /** NaN/무한대와 위경도 범위 밖의 값을 저장·거리 계산에 흘려보내지 않는다. */
+    static boolean validCoordinates(double latitude, double longitude) {
+        return !Double.isNaN(latitude) && !Double.isInfinite(latitude)
+                && !Double.isNaN(longitude) && !Double.isInfinite(longitude)
+                && latitude >= -90.0 && latitude <= 90.0
+                && longitude >= -180.0 && longitude <= 180.0;
     }
 
     /** 공급자 조회는 기기에 따라 IllegalArgumentException을 던진다. */

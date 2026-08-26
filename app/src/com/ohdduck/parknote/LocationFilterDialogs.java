@@ -56,6 +56,7 @@ class LocationFilterDialogs {
                     if (which == 0) {
                         if (on) {
                             Store.setLocationFilter(a, false);
+                            notifyChanged(a);
                             Toast.makeText(a, R.string.location_turned_off,
                                     Toast.LENGTH_SHORT).show();
                         } else {
@@ -65,6 +66,7 @@ class LocationFilterDialogs {
                         captureLocation(a);
                     } else {
                         Store.clearProfileCoords(a, Store.activeProfileId(a));
+                        notifyChanged(a);
                         Toast.makeText(a, R.string.location_cleared,
                                 Toast.LENGTH_SHORT).show();
                     }
@@ -84,6 +86,7 @@ class LocationFilterDialogs {
             return;
         }
         Store.setLocationFilter(a, true);
+        notifyChanged(a);
         if (Store.anyProfileHasCoords(a)) {
             Toast.makeText(a, R.string.location_turned_on, Toast.LENGTH_SHORT).show();
         } else {
@@ -123,6 +126,7 @@ class LocationFilterDialogs {
                     .setPositiveButton(R.string.action_save, (d, w) -> {
                         Store.setProfileCoords(a, profileId,
                                 fix.getLatitude(), fix.getLongitude(), Store.DEFAULT_RADIUS_M);
+                        notifyChanged(a);
                         Toast.makeText(a, a.getString(R.string.location_saved, name),
                                 Toast.LENGTH_SHORT).show();
                     })
@@ -171,5 +175,10 @@ class LocationFilterDialogs {
                 })
                 .setNegativeButton(R.string.action_later, null)
                 .show();
+    }
+
+    /** 설정 탭에서 바꾼 상태를 다이얼로그가 닫히기 전에도 즉시 다시 그린다. */
+    private static void notifyChanged(Activity a) {
+        if (a instanceof ScreenHost) ((ScreenHost) a).refresh(false);
     }
 }

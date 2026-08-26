@@ -1,8 +1,10 @@
 package com.ohdduck.parknote;
 
 import android.app.Activity;
+import android.app.NotificationManager;
 import android.content.pm.PackageManager;
 import android.graphics.Typeface;
+import android.service.notification.StatusBarNotification;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.LinearLayout;
@@ -27,6 +29,9 @@ import java.util.List;
  */
 class SettingsTab {
 
+    private static final int TEST_VERIFY_ATTEMPTS = 6;
+    private static final long TEST_VERIFY_DELAY_MS = 200L;
+
     private final Activity host;
     private final ScreenHost screen;
     private final TextView summary;
@@ -35,6 +40,7 @@ class SettingsTab {
     private final LinearLayout vehicleGroup;
     private final LinearLayout dataGroup;
     private final TextView version;
+    private int notificationTestGeneration;
 
     SettingsTab(Activity host, ScreenHost screen) {
         this.host = host;
@@ -114,6 +120,7 @@ class SettingsTab {
     }
 
     private void sendTestNotification() {
+        int generation = ++notificationTestGeneration;
         if (!ReadyCheck.canPostNotifications(host)) {
             Toast.makeText(host, R.string.ready_test_no_permission, Toast.LENGTH_LONG).show();
             ReadyCheck.run(host, ReadyCheck.Action.NOTIFICATIONS);
@@ -124,8 +131,58 @@ class SettingsTab {
             Toast.makeText(host, R.string.ready_test_no_vehicle, Toast.LENGTH_LONG).show();
             return;
         }
-        BtReceiver.showParkPrompt(host, vehicle);
-        Toast.makeText(host, R.string.ready_test_sent, Toast.LENGTH_LONG).show();
+        long requestedAt = System.currentTimeMillis();
+        String testToken = Long.toHexString(System.nanoTime()) + ":" + generation;
+        BtReceiver.showParkPrompt(host, vehicle, testToken);
+        verifyParkPrompt(generation, vehicle.optString("id", ""), testToken, requestedAt, 0);
+    }
+
+    /** NotificationManagerService의 비동기 enqueue가 끝날 때까지 짧게 재확인한다. */
+    private void verifyParkPrompt(int generation, String vehicleId, String testToken,
+                                  long requestedAt, int attempt) {
+        host.getWindow().getDecorView().postDelayed(() -> {
+            if (generation != notificationTestGeneration
+                    || host.isFinishing() || host.isDestroyed()) {
+                return;
+            }
+            if (isParkPromptVisible(vehicleId, testToken, requestedAt)) {
+                Toast.makeText(host, R.string.ready_test_sent, Toast.LENGTH_LONG).show();
+                return;
+            }
+            if (attempt + 1 < TEST_VERIFY_ATTEMPTS) {
+                verifyParkPrompt(generation, vehicleId, testToken, requestedAt, attempt + 1);
+                return;
+            }
+            // 권한 판정 직후 채널이 바뀌었거나 현재 위치가 쓰는 조용한 채널만
+            // 차단된 경우까지 잡는다. 실제 게시 결과 없이 성공 문구를 띄우지 않는다.
+            Toast.makeText(host, R.string.ready_test_no_permission, Toast.LENGTH_LONG).show();
+            ReadyCheck.run(host, ReadyCheck.Action.NOTIFICATIONS);
+        }, TEST_VERIFY_DELAY_MS);
+    }
+
+    private boolean isParkPromptVisible(String vehicleId, String testToken, long requestedAt) {
+        NotificationManager manager =
+                (NotificationManager) host.getSystemService(Activity.NOTIFICATION_SERVICE);
+        if (manager == null) return false;
+        String expectedTag = "bt:" + vehicleId;
+        try {
+            StatusBarNotification[] active = manager.getActiveNotifications();
+            if (active == null) return false;
+            for (StatusBarNotification notification : active) {
+                if (notification.getId() == Store.NOTIF_ID_BT
+                        && expectedTag.equals(notification.getTag())
+                        // 같은 tag/id의 예전 알림을 이번 테스트 성공으로 세지 않는다.
+                        && notification.getNotification().extras != null
+                        && testToken.equals(notification.getNotification().extras.getString(
+                                BtReceiver.EXTRA_TEST_TOKEN))
+                        && notification.getPostTime() >= requestedAt) {
+                    return true;
+                }
+            }
+        } catch (SecurityException ignored) {
+            return false;
+        }
+        return false;
     }
 
     private View readyRow(ReadyCheck.Item item) {

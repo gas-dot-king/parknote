@@ -9,8 +9,10 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.drawable.Icon;
+import android.location.Location;
 import android.net.Uri;
 import android.os.Build;
+import android.os.Bundle;
 
 import org.json.JSONObject;
 
@@ -26,6 +28,8 @@ import org.json.JSONObject;
  * {@link #showParkPrompt}는 테스트 알림에서도 그대로 재사용한다.
  */
 public class BtReceiver extends BroadcastReceiver {
+
+    static final String EXTRA_TEST_TOKEN = "com.ohdduck.parknote.TEST_TOKEN";
 
     @Override
     @SuppressWarnings("deprecation")
@@ -58,7 +62,10 @@ public class BtReceiver extends BroadcastReceiver {
             if (nm != null) nm.cancel("bt:" + vehicleId, Store.NOTIF_ID_BT);
             return;
         }
-        showParkPrompt(ctx, vehicle);
+        // Freeze the best fix at the disconnect event. The user may tap a zone after walking
+        // away, so reading location again from that later broadcast would save the wrong spot.
+        Location parkingFix = Nearby.hasPermission(ctx) ? Nearby.lastFix(ctx) : null;
+        showParkPrompt(ctx, vehicle, parkingFix, null);
     }
 
     /**
@@ -68,6 +75,16 @@ public class BtReceiver extends BroadcastReceiver {
      * 다른 경로를 타면 "테스트는 되는데 실제로는 안 온다"를 구별하지 못한다.
      */
     static void showParkPrompt(Context ctx, JSONObject vehicle) {
+        showParkPrompt(ctx, vehicle, Nearby.lastFix(ctx), null);
+    }
+
+    /** Test path: embeds a one-use token so SettingsTab cannot mistake an older prompt for it. */
+    static void showParkPrompt(Context ctx, JSONObject vehicle, String testToken) {
+        showParkPrompt(ctx, vehicle, Nearby.lastFix(ctx), testToken);
+    }
+
+    private static void showParkPrompt(Context ctx, JSONObject vehicle, Location parkingFix,
+                                       String testToken) {
         NotificationManager nm =
                 (NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
         if (nm == null || vehicle == null) return;
@@ -111,6 +128,11 @@ public class BtReceiver extends BroadcastReceiver {
                         : ctx.getString(R.string.bt_notification_elsewhere))
                 .setContentIntent(open)
                 .setAutoCancel(true);
+        if (testToken != null && !testToken.isEmpty()) {
+            Bundle extras = new Bundle();
+            extras.putString(EXTRA_TEST_TOKEN, testToken);
+            nb.addExtras(extras);
+        }
 
         // 최근 구역 버튼: 위젯과 같은 RECORD 브로드캐스트 재사용.
         // 구역별 data URI로 PendingIntent를 구분하고, requestCode는 위젯(0~5, 100)과
@@ -124,6 +146,7 @@ public class BtReceiver extends BroadcastReceiver {
                     .putExtra(ParkWidgetProvider.EXTRA_ZONE, zones[i])
                     .putExtra(ParkWidgetProvider.EXTRA_PROFILE_ID, profileId)
                     .putExtra(ParkWidgetProvider.EXTRA_VEHICLE_ID, vehicleId);
+            ParkWidgetProvider.putLocationSnapshot(it, parkingFix);
             nb.addAction(new Notification.Action.Builder(
                     Icon.createWithResource(ctx, R.drawable.ic_notif), zones[i],
                     PendingIntent.getBroadcast(ctx, 200 + i, it,

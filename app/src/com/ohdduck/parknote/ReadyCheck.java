@@ -2,6 +2,8 @@ package com.ohdduck.parknote;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -95,14 +97,29 @@ class ReadyCheck {
 
     /** 알림을 띄울 수 있는 상태인가. 테스트 알림이 먼저 묻는다. */
     static boolean canPostNotifications(Context c) {
-        return Build.VERSION.SDK_INT < 33
-                || c.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
-                        == PackageManager.PERMISSION_GRANTED;
+        if (Build.VERSION.SDK_INT >= 33
+                && c.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+                        != PackageManager.PERMISSION_GRANTED) {
+            return false;
+        }
+        NotificationManager manager =
+                (NotificationManager) c.getSystemService(Context.NOTIFICATION_SERVICE);
+        if (manager == null || !manager.areNotificationsEnabled()) return false;
+
+        // 앱 전체 알림은 켜고 위치 기록 채널만 끈 경우에도 실제 알림은 나오지 않는다.
+        if (!channelEnabled(manager, Store.CHANNEL)) return false;
+        // 위치 조절을 켜면 등록 주차장 밖의 알림은 별도 무음 채널을 쓴다. 그 채널을
+        // 사용자가 껐다면 알림함에도 남지 않으므로 준비 완료로 표시하면 안 된다.
+        return !Store.locationFilterOn(c) || channelEnabled(manager, Store.CHANNEL_QUIET);
+    }
+
+    private static boolean channelEnabled(NotificationManager manager, String channelId) {
+        NotificationChannel channel = manager.getNotificationChannel(channelId);
+        return channel == null || channel.getImportance() != NotificationManager.IMPORTANCE_NONE;
     }
 
     private static Item notifications(Context c) {
-        // API 32 이하에는 런타임 권한 자체가 없다. 알림 자체를 꺼 뒀는지까지는
-        // NotificationManager로 볼 수 있지만, 여기서는 권한만 본다.
+        // API 32 이하에도 앱 전체/채널 차단은 있으므로 런타임 권한만 보면 안 된다.
         boolean granted = canPostNotifications(c);
         return new Item(R.string.ready_notifications,
                 granted ? State.OK : State.ACTION_NEEDED,
@@ -121,9 +138,7 @@ class ReadyCheck {
             return new Item(R.string.ready_bluetooth, State.ACTION_NEEDED,
                     c.getString(R.string.ready_bt_manual, vehicle), Action.BLUETOOTH);
         }
-        boolean canRead = Build.VERSION.SDK_INT < 31
-                || c.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT)
-                        == PackageManager.PERMISSION_GRANTED;
+        boolean canRead = hasBluetoothPermission(c);
         return new Item(R.string.ready_bluetooth,
                 canRead ? State.OK : State.ACTION_NEEDED,
                 canRead ? btName : c.getString(R.string.ready_bt_no_permission),
@@ -176,9 +191,11 @@ class ReadyCheck {
                 openAppNotificationSettings(a);
                 break;
             case BLUETOOTH:
-                // 지금은 MainActivity만 이 화면을 띄우지만, 캐스팅을 그냥 두면
-                // 다른 곳에서 재사용하는 순간 ClassCastException으로 죽는다.
-                if (a instanceof ScreenHost) {
+                // 권한이 빠진 상태에서 차량 편집기만 열면 직접 입력밖에 할 수 없어
+                // 자동 감지를 복구하지 못한다. 이때는 앱 권한 화면을 먼저 연다.
+                if (!hasBluetoothPermission(a)) {
+                    openBluetoothPermissionSettings(a);
+                } else if (a instanceof ScreenHost) {
                     VehicleDialogs.showCurrentOptions(a, (ScreenHost) a);
                 }
                 break;
@@ -206,6 +223,17 @@ class ReadyCheck {
      */
     private static void openBatterySettings(Activity a) {
         if (start(a, new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))) return;
+        openAppDetails(a);
+    }
+
+    static boolean hasBluetoothPermission(Context c) {
+        return Build.VERSION.SDK_INT < 31
+                || c.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT)
+                        == PackageManager.PERMISSION_GRANTED;
+    }
+
+    /** 준비 카드와 블루투스 선택기가 공유하는 권한 복구 진입점. */
+    static void openBluetoothPermissionSettings(Activity a) {
         openAppDetails(a);
     }
 

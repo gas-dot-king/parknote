@@ -35,6 +35,14 @@ public class ZoneSettingsActivity extends Activity {
     private static final String STATE_ROWS = "rows";
     private static final String STATE_COLS = "cols";
     private static final String STATE_ETC = "etc";
+    private static final String STATE_DIALOG_GROUP = "dialog_group";
+    private static final String STATE_DIALOG_INDEX = "dialog_index";
+    private static final String STATE_DIALOG_DRAFT = "dialog_draft";
+
+    private static final int GROUP_NONE = -1;
+    private static final int GROUP_ROWS = 0;
+    private static final int GROUP_COLS = 1;
+    private static final int GROUP_ETC = 2;
 
     /** 편집 중인 목록. 저장을 누르기 전까지 Store는 건드리지 않는다. */
     private final ArrayList<String> rows = new ArrayList<>();
@@ -49,6 +57,12 @@ public class ZoneSettingsActivity extends Activity {
     private LinearLayout etcBlocks;
     private LinearLayout preview;
     private TextView previewNote;
+
+    /** 회전 직전 이름 편집 다이얼로그를 정확히 복원하기 위한 현재 편집 상태. */
+    private int dialogGroup = GROUP_NONE;
+    private int dialogIndex = -1;
+    private EditText dialogInput;
+    private AlertDialog nameDialog;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -79,6 +93,7 @@ public class ZoneSettingsActivity extends Activity {
         }
         applyWindowInsets();
         render();
+        if (savedInstanceState != null) restoreNameDialog(savedInstanceState);
     }
 
     private void restore(Bundle state, String key, ArrayList<String> into) {
@@ -92,6 +107,23 @@ public class ZoneSettingsActivity extends Activity {
         out.putStringArrayList(STATE_ROWS, rows);
         out.putStringArrayList(STATE_COLS, cols);
         out.putStringArrayList(STATE_ETC, etc);
+        if (nameDialog != null && nameDialog.isShowing()
+                && dialogGroup != GROUP_NONE && dialogInput != null) {
+            out.putInt(STATE_DIALOG_GROUP, dialogGroup);
+            out.putInt(STATE_DIALOG_INDEX, dialogIndex);
+            // trim하지 않은 초안을 보존해야 사용자가 입력하던 커서 앞뒤 공백까지 살아난다.
+            out.putString(STATE_DIALOG_DRAFT, dialogInput.getText().toString());
+        }
+    }
+
+    private void restoreNameDialog(Bundle state) {
+        int group = state.getInt(STATE_DIALOG_GROUP, GROUP_NONE);
+        if (group == GROUP_NONE) return;
+        ArrayList<String> target = targetForGroup(group);
+        int index = state.getInt(STATE_DIALOG_INDEX, -1);
+        if (target == null || index < -1 || index >= target.size()) return;
+        showNameDialog(target, index, nameResForGroup(group),
+                state.getString(STATE_DIALOG_DRAFT, ""));
     }
 
     private void applyWindowInsets() {
@@ -176,6 +208,30 @@ public class ZoneSettingsActivity extends Activity {
         showNameDialog(target, index, nameRes, target.get(index));
     }
 
+    private int groupOf(ArrayList<String> target) {
+        if (target == rows) return GROUP_ROWS;
+        if (target == cols) return GROUP_COLS;
+        if (target == etc) return GROUP_ETC;
+        return GROUP_NONE;
+    }
+
+    private ArrayList<String> targetForGroup(int group) {
+        switch (group) {
+            case GROUP_ROWS: return rows;
+            case GROUP_COLS: return cols;
+            case GROUP_ETC: return etc;
+            default: return null;
+        }
+    }
+
+    private int nameResForGroup(int group) {
+        switch (group) {
+            case GROUP_ROWS: return R.string.zone_rows_name;
+            case GROUP_COLS: return R.string.zone_cols_name;
+            default: return R.string.zone_etc_blocks_name;
+        }
+    }
+
     /**
      * 이름 한 칸 다이얼로그. index가 -1이면 추가, 아니면 수정이다.
      *
@@ -185,6 +241,8 @@ public class ZoneSettingsActivity extends Activity {
     private void showNameDialog(ArrayList<String> target, int index, int nameRes,
                                 String initial) {
         boolean editing = index >= 0;
+        int group = groupOf(target);
+        if (group == GROUP_NONE) return;
         String groupName = getString(nameRes);
         EditText input = Ui.input(this, getString(R.string.zone_block_hint));
         input.setText(initial);
@@ -230,6 +288,19 @@ public class ZoneSettingsActivity extends Activity {
             target.remove(index);
             render();
             d.dismiss();
+        });
+        dialogGroup = group;
+        dialogIndex = index;
+        dialogInput = input;
+        nameDialog = dialog;
+        dialog.setOnDismissListener(d -> {
+            // 회전으로 이전 Activity의 다이얼로그가 뒤늦게 닫혀도 새 편집 상태와
+            // 섞이지 않도록 이 인스턴스가 소유한 다이얼로그일 때만 비운다.
+            if (nameDialog != dialog) return;
+            nameDialog = null;
+            dialogInput = null;
+            dialogGroup = GROUP_NONE;
+            dialogIndex = -1;
         });
         Ui.showWithKeyboard(dialog, input);
     }

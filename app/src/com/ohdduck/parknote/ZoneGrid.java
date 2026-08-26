@@ -7,6 +7,7 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
@@ -55,16 +56,36 @@ class ZoneGrid {
             LinearLayout row = null;
             for (int i = 0; i < cols.length; i++) {
                 if (i % perRow == 0) row = addRow(ctx, container);
-                row.addView(cell(ctx, cols[i], cols[i], height, textSp, R.color.text, tap));
+                row.addView(cell(ctx, cols[i], cols[i], height, textSp,
+                        R.color.text, tap, 0));
             }
             if (row != null) fillRow(ctx, row, perRow, height);
             return;
         }
 
+        // 6~8열의 실제 기록 격자는 화면에 억지로 압축하지 않는다. 모든 행을 같은
+        // 가로 스크롤 하나에 넣어 열 정렬을 유지하고, 각 칸은 최소 48dp를 보장한다.
+        // compact 미리보기는 비활성이라 기존 압축 배치를 그대로 쓴다.
+        boolean scrollable = !compact && tap != null && cols.length >= 6;
+        LinearLayout rowsContainer = container;
+        if (scrollable) {
+            HorizontalScrollView scroll = new HorizontalScrollView(ctx);
+            scroll.setFillViewport(false);
+            scroll.setHorizontalScrollBarEnabled(true);
+            rowsContainer = new LinearLayout(ctx);
+            rowsContainer.setOrientation(LinearLayout.VERTICAL);
+            scroll.addView(rowsContainer, new ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+            container.addView(scroll, new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT));
+        }
+        int fixedCellWidth = scrollable ? dp(ctx, cellWidthDp(cols.length, true, false)) : 0;
+
         // 격자에서는 왼쪽 층 라벨이 행을 알려 주므로 칸에는 구역 이름만 쓴다.
         // "B1-A"를 칸마다 반복하면 구역이 6~8개일 때 폭이 모자라 잘려 버린다.
         for (String rowLabel : rows) {
-            LinearLayout row = addRow(ctx, container);
+            LinearLayout row = addRow(ctx, rowsContainer, scrollable);
             TextView label = new TextView(ctx);
             label.setText(rowLabel);
             label.setTextSize(compact ? 10 : 13);
@@ -77,7 +98,7 @@ class ZoneGrid {
 
             for (String col : cols) {
                 row.addView(cell(ctx, rowLabel + sep + col, col, height, textSp,
-                        R.color.text, tap));
+                        R.color.text, tap, fixedCellWidth));
             }
         }
     }
@@ -97,7 +118,8 @@ class ZoneGrid {
         LinearLayout row = null;
         for (int i = 0; i < zones.length; i++) {
             if (i % perRow == 0) row = addRow(ctx, container);
-            row.addView(cell(ctx, zones[i], zones[i], height, 13, R.color.subtext, tap));
+            row.addView(cell(ctx, zones[i], zones[i], height, 13,
+                    R.color.subtext, tap, 0));
         }
         if (row != null) fillRow(ctx, row, perRow, height);
     }
@@ -124,7 +146,7 @@ class ZoneGrid {
 
     /** zone은 저장·강조에 쓰는 전체 이름, label은 칸에 실제로 찍히는 짧은 이름. */
     private static Button cell(Context ctx, String zone, String label, int height, int textSp,
-                               int textColorRes, OnZoneTap tap) {
+                               int textColorRes, OnZoneTap tap, int fixedWidth) {
         Button b = new Button(ctx);
         b.setText(label);
         b.setTag(zone);
@@ -140,7 +162,9 @@ class ZoneGrid {
         b.setMinWidth(0);
         b.setMinimumWidth(0);
         b.setStateListAnimator(null);
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, height, 1f);
+        LinearLayout.LayoutParams lp = fixedWidth > 0
+                ? new LinearLayout.LayoutParams(fixedWidth, height)
+                : new LinearLayout.LayoutParams(0, height, 1f);
         int gutter = gutter(ctx);
         lp.setMargins(gutter, gutter, gutter, gutter);
         b.setLayoutParams(lp);
@@ -150,10 +174,15 @@ class ZoneGrid {
     }
 
     private static LinearLayout addRow(Context ctx, LinearLayout container) {
+        return addRow(ctx, container, false);
+    }
+
+    private static LinearLayout addRow(Context ctx, LinearLayout container, boolean wrapWidth) {
         LinearLayout row = new LinearLayout(ctx);
         row.setOrientation(LinearLayout.HORIZONTAL);
         container.addView(row, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
+                wrapWidth ? LinearLayout.LayoutParams.WRAP_CONTENT
+                        : LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT));
         return row;
     }
@@ -191,6 +220,15 @@ class ZoneGrid {
         if (!grid) return 58;
         if (cols <= 3) return 56;
         return cols <= 5 ? 52 : MIN_TOUCH_DP;
+    }
+
+    /**
+     * 가로 스크롤 격자에서 적용할 칸 폭 하한(dp). compact는 고정 폭을 적용하지 않지만,
+     * 미리보기 회귀를 함께 검증할 수 있도록 압축 기준값을 돌려준다.
+     */
+    static int cellWidthDp(int cols, boolean grid, boolean compact) {
+        if (compact) return cols <= 5 ? 32 : 24;
+        return grid ? MIN_TOUCH_DP : 96;
     }
 
     private static int cellTextSize(int cols, boolean grid, boolean compact) {

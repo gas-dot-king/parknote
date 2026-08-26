@@ -171,6 +171,32 @@ public class StoreDataTest {
     }
 
     @Test
+    public void 기록_좌표는_두_값이_모두_유효한_범위일_때만_인정한다() throws JSONException {
+        assertTrue(Store.recordHasCoords(new JSONObject().put("lat", 37.5).put("lon", 127.0)));
+        assertTrue(Store.validCoordinates(-90, -180));
+        assertTrue(Store.validCoordinates(90, 180));
+
+        assertFalse(Store.recordHasCoords(new JSONObject().put("lat", 37.5)));
+        assertFalse(Store.recordHasCoords(new JSONObject().put("lat", 91).put("lon", 127)));
+        assertFalse(Store.validCoordinates(Double.NaN, 127));
+        assertFalse(Store.validCoordinates(37.5, Double.POSITIVE_INFINITY));
+    }
+
+    @Test
+    public void 위치_메타데이터는_옛_기록과_새_기록을_함께_읽는다() throws JSONException {
+        assertEquals(0L, Store.recordLocationTime(new JSONObject()));
+        assertEquals(-1f, Store.recordLocationAccuracy(new JSONObject()), 0f);
+
+        JSONObject recent = new JSONObject().put("loc_t", 12345L).put("loc_acc", 7.5);
+        assertEquals(12345L, Store.recordLocationTime(recent));
+        assertEquals(7.5f, Store.recordLocationAccuracy(recent), 0.001f);
+
+        assertEquals(0L, Store.recordLocationTime(new JSONObject().put("loc_t", -1)));
+        assertEquals(-1f,
+                Store.recordLocationAccuracy(new JSONObject().put("loc_acc", -1)), 0f);
+    }
+
+    @Test
     public void 기록_상한이_맥락별로_나뉘어_있다() {
         // 전역 40개였을 때는 주차장 6 × 차량 3 = 18개 맥락이 40칸을 나눠 썼다.
         assertTrue("맥락당 상한이 화면에 보여 주는 5개보다는 넉넉해야 한다",

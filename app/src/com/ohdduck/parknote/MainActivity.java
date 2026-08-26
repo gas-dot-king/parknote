@@ -101,7 +101,7 @@ public class MainActivity extends Activity implements ScreenHost, Tabs.Listener 
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // 첫 실행이면 주차장 격자와 차량 블루투스부터 정하게 한다.
+        // 첫 실행이면 권한·차량·주차장·격자를 순서대로 안내한다.
         if (!Store.isOnboarded(this)) {
             startActivity(new Intent(this, OnboardingActivity.class));
             finish();
@@ -218,8 +218,10 @@ public class MainActivity extends Activity implements ScreenHost, Tabs.Listener 
         registerReceiver(clockTick, new IntentFilter(Intent.ACTION_TIME_TICK));
         ParkingTimers.scheduleAll(this);
         render(); // "n시간 전" 표시, 위젯에서 저장한 기록, 날짜 변경 갱신
-        // 권한·배터리 설정은 시스템 화면에 다녀오면 바뀌어 있다. 돌아올 때마다 다시 본다.
-        if (tabs.current() == Tabs.LOCATION) locationTab.onShow();
+        // 권한·배터리 설정과 위젯에서 바뀐 기록은 시스템 화면·다른 앱에 다녀오면
+        // 달라져 있을 수 있다. 홈만 다시 그리면 기록/설정 탭에는 이전 값이 남는다.
+        // 현재 보이는 탭의 갱신 경로를 그대로 다시 태운다.
+        if (tabs != null) onTabChanged(tabs.current());
     }
 
     @Override
@@ -230,11 +232,28 @@ public class MainActivity extends Activity implements ScreenHost, Tabs.Listener 
     }
 
     @Override
+    protected void onDestroy() {
+        if (locationTab != null) locationTab.onDestroy();
+        super.onDestroy();
+    }
+
+    @Override
     protected void onSaveInstanceState(Bundle out) {
         super.onSaveInstanceState(out);
         out.putString(STATE_PENDING_EDIT, pendingEditRecordId);
         out.putString(STATE_OPEN_RECORD, openRecordId);
         out.putInt(STATE_TAB, tabs == null ? Tabs.HOME : tabs.current());
+    }
+
+    @Override
+    public void onBackPressed() {
+        // 하단 탭은 독립 화면처럼 보인다. 홈이 아닌 탭에서 뒤로 가기는 앱을
+        // 갑자기 닫는 대신 홈으로 돌아가고, 홈에서 한 번 더 눌렀을 때만 종료한다.
+        if (tabs != null && tabs.current() != Tabs.HOME) {
+            tabs.select(Tabs.HOME);
+            return;
+        }
+        super.onBackPressed();
     }
 
     // ---------- Tabs.Listener ----------
@@ -496,7 +515,11 @@ public class MainActivity extends Activity implements ScreenHost, Tabs.Listener 
             return;
         }
         JSONObject state = Store.btState(this);
-        if (state == null) {
+        // 구버전의 단일 상태 값이나 전환 직전 다른 차량의 이벤트를 현재 차량의
+        // "시동 꺼짐"으로 보여 주지 않는다. Store가 차량별 상태를 반환하더라도
+        // 이 검사는 오래된 데이터 마이그레이션에 대한 마지막 방어선이다.
+        if (state == null
+                || !Store.activeVehicleId(this).equals(state.optString("v", ""))) {
             detectEngine.setText(R.string.detect_engine_unknown);
             detectEngine.setTextColor(colorSubtext);
             detectEngineHint.setText(R.string.detect_engine_never);

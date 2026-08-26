@@ -46,16 +46,24 @@ class BtPicker {
     }
 
     static void show(Activity a, String current, OnPicked onPicked) {
+        boolean permissionMissing = !ReadyCheck.hasBluetoothPermission(a);
         ArrayList<String> names = bondedNames(a);
         if (names == null || names.isEmpty()) {
-            new AlertDialog.Builder(a)
+            AlertDialog.Builder builder = new AlertDialog.Builder(a)
                     .setTitle(R.string.bt_none_title)
-                    .setMessage(names == null
+                    .setMessage(permissionMissing || names == null
                             ? R.string.bt_no_permission : R.string.bt_no_bonded)
-                    .setPositiveButton(R.string.bt_manual_button,
-                            (d, w) -> manual(a, current, onPicked))
-                    .setNegativeButton(R.string.action_later, null)
-                    .show();
+                    .setNegativeButton(R.string.action_later, null);
+            if (permissionMissing) {
+                builder.setPositiveButton(R.string.bt_permission_button,
+                                (d, w) -> ReadyCheck.openBluetoothPermissionSettings(a))
+                        .setNeutralButton(R.string.bt_manual_button,
+                                (d, w) -> manual(a, current, onPicked));
+            } else {
+                builder.setPositiveButton(R.string.bt_manual_button,
+                        (d, w) -> manual(a, current, onPicked));
+            }
+            builder.show();
             return;
         }
         ArrayList<String> items = new ArrayList<>(names);

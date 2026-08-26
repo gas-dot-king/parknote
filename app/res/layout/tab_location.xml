@@ -3,10 +3,9 @@
   위치 탭 — "내 차까지 얼마나 남았나".
 
   지도 타일은 일부러 그리지 않는다. 타일을 띄우려면 지도 SDK와 INTERNET 권한이
-  필요하고, 그러면 "좌표는 기기 밖으로 나가지 않는다"는 이 앱의 약속이 깨진다.
-  거리·방향·주소는 전부 기기 안에서 만들 수 있고(Store.metersBetween, Geocoder,
-  SensorManager), 실제 지도가 필요한 순간에는 geo: 인텐트로 사용자가 이미 쓰는
-  지도 앱에 넘긴다.
+  필요하고 앱 안에서 네트워크 처리가 생긴다. 거리·방향·좌표 문자열은 네트워크 없이
+  기기 안에서 만들고(Store.metersBetween, SensorManager), 사용자가 지도 열기를
+  명시적으로 누른 순간에만 geo: 인텐트로 선택한 지도 앱에 좌표를 넘긴다.
 -->
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/tabLocation"
@@ -94,7 +93,7 @@
                 android:src="@drawable/ic_direction_arrow" />
         </LinearLayout>
 
-        <!-- 주소 + 복사 -->
+        <!-- 좌표 + 복사 -->
         <LinearLayout
             android:id="@+id/locAddressRow"
             android:layout_width="match_parent"

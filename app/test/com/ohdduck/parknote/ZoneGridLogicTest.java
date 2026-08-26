@@ -225,6 +225,23 @@ public class ZoneGridLogicTest {
         assertTrue(ZoneGrid.cellHeightDp(8, true, true) < ZoneGrid.MIN_TOUCH_DP);
     }
 
+    // ---------- 칸 폭 ----------
+
+    @Test
+    public void cellWidthDp_6열부터_8열까지_48dp_폭을_보장한다() {
+        // 실제 홈 격자는 이 값을 고정 폭으로 적용하고 하나의 가로 스크롤 안에 넣는다.
+        // 열 수가 늘었다고 폭을 줄이면 높이만 48dp인 가늘고 잘못 누르기 쉬운 칸이 된다.
+        for (int cols = 6; cols <= Store.MAX_COLS; cols++) {
+            assertTrue("격자 " + cols + "구역: " + ZoneGrid.cellWidthDp(cols, true, false),
+                    ZoneGrid.cellWidthDp(cols, true, false) >= ZoneGrid.MIN_TOUCH_DP);
+        }
+    }
+
+    @Test
+    public void cellWidthDp_미리보기는_폭_하한을_적용받지_않는다() {
+        assertTrue(ZoneGrid.cellWidthDp(8, true, true) < ZoneGrid.MIN_TOUCH_DP);
+    }
+
     // ---------- 거리 ----------
 
     @Test

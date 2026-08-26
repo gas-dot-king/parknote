@@ -4,39 +4,46 @@
   기록까지 전부 들어 있는데도 진입로가 설정 메뉴 다섯 번째 항목뿐이라
   사실상 숨어 있던 화면이다.
 -->
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/tabHistory"
-    style="@style/TabScroll">
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:paddingLeft="@dimen/page_padding"
+    android:paddingTop="14dp"
+    android:paddingRight="@dimen/page_padding">
 
-    <LinearLayout style="@style/TabColumn">
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginLeft="@dimen/gutter"
+        android:fontFamily="sans-serif-medium"
+        android:letterSpacing="-0.02"
+        android:text="@string/history_tab_title"
+        android:textColor="@color/text"
+        android:textSize="24sp" />
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginLeft="@dimen/gutter"
-            android:fontFamily="sans-serif-medium"
-            android:letterSpacing="-0.02"
-            android:text="@string/history_tab_title"
-            android:textColor="@color/text"
-            android:textSize="24sp" />
+    <TextView
+        android:id="@+id/historyAllHint"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginLeft="@dimen/gutter"
+        android:layout_marginRight="@dimen/gutter"
+        android:layout_marginTop="4dp"
+        android:fontFamily="sans-serif"
+        android:text="@string/history_tab_hint"
+        android:textColor="@color/subtext"
+        android:textSize="13sp" />
 
-        <TextView
-            android:id="@+id/historyAllHint"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginLeft="@dimen/gutter"
-            android:layout_marginRight="@dimen/gutter"
-            android:layout_marginTop="4dp"
-            android:fontFamily="sans-serif"
-            android:text="@string/history_tab_hint"
-            android:textColor="@color/subtext"
-            android:textSize="13sp" />
-
-        <LinearLayout
-            android:id="@+id/historyAllList"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:orientation="vertical" />
-    </LinearLayout>
-</ScrollView>
+    <!-- 최대 240개 행을 화면에 보이는 만큼만 만들어 재활용한다. -->
+    <ListView
+        android:id="@+id/historyAllList"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_marginTop="12dp"
+        android:layout_weight="1"
+        android:clipToPadding="false"
+        android:divider="@null"
+        android:dividerHeight="0dp"
+        android:paddingBottom="20dp" />
+</LinearLayout>

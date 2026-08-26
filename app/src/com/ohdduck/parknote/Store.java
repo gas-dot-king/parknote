@@ -78,7 +78,7 @@ class Store {
     private static final String PREF_ACTIVE_VEHICLE = "active_parking_vehicle_id";
     private static final String PREF_HISTORY = "history";
     private static final String PREF_HABITS = "habits";
-    /** BtReceiver가 본 마지막 연결/해제. 홈의 감지 상태 카드가 읽는 표시용 상태다. */
+    /** BtReceiver가 차량별로 본 마지막 연결/해제. 홈 감지 카드의 표시용 상태다. */
     private static final String PREF_BT_STATE = "bt_state";
 
     static final String CHANNEL = "park_reminder";
@@ -745,6 +745,9 @@ class Store {
                 .putString(PREF_HISTORY, data.optString(PREF_HISTORY, "[]"))
                 .putString(PREF_HABITS, data.optString(PREF_HABITS, "[]"))
                 .putBoolean(PREF_ONBOARDED, data.optBoolean(PREF_ONBOARDED, true))
+                // A backup does not contain live connection state. Keeping the old value can
+                // make a restored vehicle look connected (or disconnected) until another event.
+                .remove(PREF_BT_STATE)
                 .apply();
 
         ensureSchema(c); // 예전 스키마의 백업이면 여기서 최신 구조로 올라온다
@@ -986,6 +989,7 @@ class Store {
         JSONArray vs = vehicles(c);
         JSONObject vehicle = findById(vs, id);
         if (vehicle == null) throw new IllegalArgumentException(c.getString(R.string.err_vehicle_not_found));
+        String previousBtName = clean(vehicle.optString("b", ""));
         if (nameTaken(vs, n, id)) throw new IllegalArgumentException(c.getString(R.string.err_vehicle_name_taken));
         if (!b.isEmpty() && bluetoothNameTaken(vs, b, id)) {
             throw new IllegalArgumentException(c.getString(R.string.err_bt_name_taken));
@@ -997,6 +1001,7 @@ class Store {
             throw new RuntimeException(e);
         }
         prefs(c).edit().putString(PREF_VEHICLES, vs.toString()).apply();
+        if (!previousBtName.equalsIgnoreCase(b)) clearBtState(c, id);
         cancelBtPrompt(c, id);
         notifyParkingContextChanged(c);
     }
@@ -1028,6 +1033,7 @@ class Store {
             }
         }
         if (timersCleared) saveHistory(c, history);
+        clearBtState(c, id);
         cancelBtPrompt(c, id);
         notifyParkingHistoryChanged(c);
         return true;
@@ -1122,6 +1128,24 @@ class Store {
     /** 위젯·블루투스 알림처럼 표시 당시의 차량/프로필을 명시해 저장할 때 사용한다. */
     static String recordInContext(Context c, String profileId, String vehicleId,
                                   String zone, String memo) {
+        return recordInContextInternal(c, profileId, vehicleId, zone, memo, null, true);
+    }
+
+    /**
+     * Stores a record with the location captured at the triggering event.
+     *
+     * <p>A {@code null} snapshot deliberately means "no location at event time". It must not
+     * fall back to a later fix, otherwise walking away after a Bluetooth disconnect can move the
+     * parked-car marker to the user's later position.
+     */
+    static String recordInContextUsingSnapshot(Context c, String profileId, String vehicleId,
+                                               String zone, String memo, Location snapshot) {
+        return recordInContextInternal(c, profileId, vehicleId, zone, memo, snapshot, false);
+    }
+
+    private static String recordInContextInternal(Context c, String profileId, String vehicleId,
+                                                  String zone, String memo, Location snapshot,
+                                                  boolean useCurrentFix) {
         ensureSchema(c);
         String z = clean(zone);
         if (z.isEmpty()) return null;
@@ -1166,12 +1190,10 @@ class Store {
             // 차를 어디에 뒀는지 좌표로도 남긴다. '위치' 탭이 여기서 거리와 방향을 만든다.
             // 새 측위는 요청하지 않는다(Nearby의 원칙). 권한이 없거나 좌표가 낡았으면
             // 그냥 안 붙고, 그 기록은 '위치' 탭에서 안내 문구로 바뀐다.
-            // 좌표는 다른 저장값과 마찬가지로 기기 밖으로 나가지 않는다.
-            Location fix = Nearby.lastFix(c);
-            if (fix != null) {
-                entry.put("lat", fix.getLatitude());
-                entry.put("lon", fix.getLongitude());
-            }
+            // 좌표는 다른 저장값과 마찬가지로 로컬에 저장한다. 사용자가 위치 탭의
+            // 지도 열기를 직접 선택한 경우에만 선택한 외부 지도 앱으로 전달된다.
+            Location fix = useCurrentFix ? Nearby.lastFix(c) : snapshot;
+            putRecordLocation(entry, fix);
             next.put(entry);
 
             // 맥락(주차장×차량)별로 세면서 담는다. 전역 상한 하나로 자르면 차를 두 대
@@ -1338,7 +1360,11 @@ class Store {
      * 새 기록에도 붙지 않으므로, 있는지 없는지를 항상 먼저 물어야 한다.
      */
     static boolean recordHasCoords(JSONObject entry) {
-        return entry != null && entry.has("lat") && entry.has("lon");
+        return entry != null
+                && entry.has("lat")
+                && entry.has("lon")
+                && validCoordinates(entry.optDouble("lat", Double.NaN),
+                        entry.optDouble("lon", Double.NaN));
     }
 
     static double recordLat(JSONObject entry) {
@@ -1347,6 +1373,39 @@ class Store {
 
     static double recordLon(JSONObject entry) {
         return entry == null ? 0 : entry.optDouble("lon", 0);
+    }
+
+    /** Epoch milliseconds of the saved location fix, or 0 for legacy/unknown records. */
+    static long recordLocationTime(JSONObject entry) {
+        long time = entry == null ? 0 : entry.optLong("loc_t", 0);
+        return time > 0 ? time : 0;
+    }
+
+    /** Accuracy radius in metres, or -1 when the provider did not report one. */
+    static float recordLocationAccuracy(JSONObject entry) {
+        double accuracy = entry == null ? -1 : entry.optDouble("loc_acc", -1);
+        if (Double.isNaN(accuracy) || Double.isInfinite(accuracy) || accuracy < 0) return -1f;
+        return (float) accuracy;
+    }
+
+    static boolean validCoordinates(double lat, double lon) {
+        return !Double.isNaN(lat) && !Double.isInfinite(lat)
+                && !Double.isNaN(lon) && !Double.isInfinite(lon)
+                && lat >= -90d && lat <= 90d
+                && lon >= -180d && lon <= 180d;
+    }
+
+    private static void putRecordLocation(JSONObject entry, Location fix) throws JSONException {
+        if (fix == null || !validCoordinates(fix.getLatitude(), fix.getLongitude())) return;
+        entry.put("lat", fix.getLatitude());
+        entry.put("lon", fix.getLongitude());
+        if (fix.getTime() > 0) entry.put("loc_t", fix.getTime());
+        if (fix.hasAccuracy()) {
+            float accuracy = fix.getAccuracy();
+            if (!Float.isNaN(accuracy) && !Float.isInfinite(accuracy) && accuracy >= 0) {
+                entry.put("loc_acc", accuracy);
+            }
+        }
     }
 
     /**
@@ -1394,12 +1453,16 @@ class Store {
      * 정확히 아는 시점(브로드캐스트)에 적어 두는 편이 정확하고 권한도 덜 든다.
      */
     static void setBtState(Context c, String vehicleId, boolean connected) {
+        String id = clean(vehicleId);
+        if (id.isEmpty()) return;
         try {
             JSONObject state = new JSONObject()
-                    .put("v", vehicleId)
+                    .put("v", id)
                     .put("on", connected)
                     .put("t", System.currentTimeMillis());
-            prefs(c).edit().putString(PREF_BT_STATE, state.toString()).apply();
+            JSONObject states = readBtStates(c);
+            states.put(id, state);
+            writeBtStates(c, states);
         } catch (JSONException ignored) {
             // 상태 표시용 부가 정보다. 실패해도 기록·알림에는 영향이 없다.
         }
@@ -1407,13 +1470,57 @@ class Store {
 
     /** 마지막 블루투스 이벤트. 한 번도 없었으면 null. */
     static JSONObject btState(Context c) {
+        return btState(c, activeVehicleId(c));
+    }
+
+    /** Last Bluetooth event for one vehicle. */
+    static JSONObject btState(Context c, String vehicleId) {
+        String id = clean(vehicleId);
+        if (id.isEmpty()) return null;
+        return readBtStates(c).optJSONObject(id);
+    }
+
+    private static JSONObject readBtStates(Context c) {
         String raw = prefs(c).getString(PREF_BT_STATE, "");
-        if (raw.isEmpty()) return null;
+        if (raw.isEmpty()) return new JSONObject();
         try {
-            return new JSONObject(raw);
+            JSONObject root = new JSONObject(raw);
+            JSONObject byVehicle = root.optJSONObject("byVehicle");
+            if (byVehicle != null) return byVehicle;
+
+            // Backward compatibility with the old single-state preference.
+            String legacyVehicleId = clean(root.optString("v", ""));
+            JSONObject migrated = new JSONObject();
+            if (!legacyVehicleId.isEmpty()) migrated.put(legacyVehicleId, root);
+            return migrated;
         } catch (JSONException e) {
-            return null;
+            return new JSONObject();
         }
+    }
+
+    private static void writeBtStates(Context c, JSONObject states) throws JSONException {
+        if (states == null || states.length() == 0) {
+            prefs(c).edit().remove(PREF_BT_STATE).apply();
+            return;
+        }
+        JSONObject root = new JSONObject().put("byVehicle", states);
+        prefs(c).edit().putString(PREF_BT_STATE, root.toString()).apply();
+    }
+
+    static void clearBtState(Context c, String vehicleId) {
+        String id = clean(vehicleId);
+        if (id.isEmpty()) return;
+        JSONObject states = readBtStates(c);
+        states.remove(id);
+        try {
+            writeBtStates(c, states);
+        } catch (JSONException ignored) {
+            prefs(c).edit().remove(PREF_BT_STATE).apply();
+        }
+    }
+
+    static void clearBtStates(Context c) {
+        prefs(c).edit().remove(PREF_BT_STATE).apply();
     }
 
     /**
@@ -1425,7 +1532,6 @@ class Store {
     static boolean btConnected(Context c) {
         JSONObject state = btState(c);
         if (state == null) return false;
-        if (!activeVehicleId(c).equals(state.optString("v"))) return false;
         return state.optBoolean("on", false);
     }
 

@@ -26,6 +26,9 @@ public class ReminderReceiver extends BroadcastReceiver {
         // 후자를 빠뜨리면 업데이트가 걸린 사이의 출차 알림이 조용히 오지 않는다.
         if (Intent.ACTION_BOOT_COMPLETED.equals(action)
                 || Intent.ACTION_MY_PACKAGE_REPLACED.equals(action)) {
+            // ACL connection broadcasts are not sticky across a reboot. Discard the persisted
+            // display-only state instead of showing yesterday's connection as current.
+            if (Intent.ACTION_BOOT_COMPLETED.equals(action)) Store.clearBtStates(ctx);
             Reminders.scheduleAll(ctx);
             ParkingTimers.scheduleAll(ctx);
             return;

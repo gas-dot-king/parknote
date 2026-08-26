@@ -8,7 +8,9 @@
 - `targetSdk 35`, `minSdk 26`
 - Google Play 신규 앱용 AAB 빌드 경로: `build-release.ps1`
 - `USE_EXACT_ALARM`을 사용하지 않음. 출차/습관 알림은 Android 절전 정책에 따라 다소 늦을 수 있음
-- 주차 기록·차량 이름·메모·습관 기록은 앱 전용 로컬 저장소에만 보관
+- 주차 기록·차량 이름·메모·습관 기록과 사용자가 허용한 위치 좌표는 앱 전용 로컬 저장소에만 보관
+- 앱 자체의 인터넷 권한·광고·분석 SDK는 없음. 사용자가 **지도 앱으로 열기**를 누른 경우에만
+  좌표를 선택한 외부 지도 앱에 전달
 - Android 자동 백업은 꺼져 있음 (`allowBackup=false`)
 - 블루투스는 선택 기능이며, 블루투스 없는 기기에서도 수동 기록 설치 가능
 
@@ -57,7 +59,7 @@
 | 카테고리 | 자동차 및 차량 (또는 생산성) |
 | 광고 | 없음 |
 | 앱 액세스 | 로그인·제한 없음 |
-| Data safety | 수집·공유 없음 — 최종 AAB에 네트워크/분석/광고 SDK가 없다는 전제 |
+| Data safety | 개발자에 의한 수집·공유 없음 — 위치를 포함한 데이터는 기기 내 처리만 하며, 최종 AAB에 네트워크/분석/광고 SDK가 없다는 전제 |
 | 개인정보 처리방침 | 공개 HTTPS URL (템플릿의 실제 개발자명·지원 이메일 필수) |
 | 콘텐츠 등급 | IARC 설문을 실제 기능에 맞게 작성 |
 
@@ -71,7 +73,13 @@
 ## Play Console에서 확인할 정책 항목
 
 - Data safety, 개인정보 처리방침, 광고, 앱 액세스, 타깃 연령층, 콘텐츠 등급
-- `BLUETOOTH_CONNECT`, `POST_NOTIFICATIONS`, `RECEIVE_BOOT_COMPLETED` 권한의 실제 사용 목적
+- `BLUETOOTH_CONNECT`, `POST_NOTIFICATIONS`, `RECEIVE_BOOT_COMPLETED`,
+  `ACCESS_COARSE_LOCATION`, `ACCESS_FINE_LOCATION`, `ACCESS_BACKGROUND_LOCATION` 권한의 실제 사용 목적
+- 백그라운드 위치 권한은 앱이 닫힌 블루투스 해제 순간의 주차장 근접 판정과 위치 스냅샷에
+  사용한다. Play Console의 위치 권한 선언·검토 화면에서 핵심 사용자 가치, 앱 내 고지,
+  짧은 시연 영상을 실제 동작과 일치하게 제출하고 승인 상태를 확인한다
+- Data safety의 "수집"은 앱 내부 처리, 사용자가 직접 실행한 지도 앱 전달·백업 내보내기와 구분해
+  최종 정책 질문 및 배포 AAB 동작을 기준으로 답한다
 - 개인정보 처리방침 URL과 스토어 설명/스크린샷이 앱의 실제 기능과 일치하는지
 
 ## 공식 문서

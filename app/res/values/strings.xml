@@ -7,6 +7,9 @@
   한 번에 통독하며 말투를 맞춰 볼 수도 없다.
 -->
 <resources>
+    <!-- Accessibility custom actions require stable app resource IDs. -->
+    <item name="accessibility_action_zone_move_previous" type="id" />
+    <item name="accessibility_action_zone_move_next" type="id" />
 
     <!-- ── 브랜드 ─────────────────────────────────────────────────────────── -->
     <string name="app_name">아맞다주차!</string>
@@ -88,7 +91,7 @@
     <string name="profile_added">새 주차장을 추가했어요</string>
     <string name="profile_renamed">이름을 바꿨어요</string>
     <string name="profile_deleted_toast">주차장을 삭제했어요</string>
-    <string name="profile_delete_confirm">\'%1$s\' 주차장을 삭제할까요?\n기존 기록은 설정의 전체 주차 기록에서 계속 확인·수정할 수 있어요.\n이 주차장의 출차 알림은 해제돼요.</string>
+    <string name="profile_delete_confirm">\'%1$s\' 주차장을 삭제할까요?\n기존 기록은 기록 탭에서 계속 확인·수정할 수 있어요.\n이 주차장의 출차 알림은 해제돼요.</string>
     <string name="profile_choose_title">주차장 선택</string>
     <string name="profile_deleted_prefix">삭제된 주차장: %1$s</string>
 
@@ -108,7 +111,7 @@
     <string name="vehicle_added">차량을 추가했어요</string>
     <string name="vehicle_saved">차량 정보를 저장했어요</string>
     <string name="vehicle_deleted_toast">차량을 삭제했어요</string>
-    <string name="vehicle_delete_confirm">\'%1$s\' 차량을 삭제할까요?\n기존 기록은 설정의 전체 주차 기록에서 계속 확인·수정할 수 있어요.\n이 차량의 출차 알림과 블루투스 알림은 해제돼요.</string>
+    <string name="vehicle_delete_confirm">\'%1$s\' 차량을 삭제할까요?\n기존 기록은 기록 탭에서 계속 확인·수정할 수 있어요.\n이 차량의 출차 알림과 블루투스 알림은 해제돼요.</string>
     <string name="vehicle_choose_title">차량 선택</string>
     <string name="vehicle_deleted_prefix">삭제된 차량: %1$s</string>
 
@@ -117,9 +120,10 @@
     <string name="bt_manual_entry">직접 입력…</string>
     <string name="bt_clear">비우기 · 수동 기록만</string>
     <string name="bt_none_title">고를 수 있는 기기가 없어요</string>
-    <string name="bt_no_permission">블루투스 권한이 없거나 기기가 블루투스를 지원하지 않아요. 이름을 직접 입력할 수 있어요.</string>
+    <string name="bt_no_permission">블루투스 권한이 없거나 기기가 블루투스를 지원하지 않아요. 권한 설정을 열거나 이름을 직접 입력할 수 있어요.</string>
     <string name="bt_no_bonded">페어링된 기기가 없어요. 차에 타서 블루투스가 연결된 뒤 다시 시도하거나, 이름을 직접 입력해 주세요.</string>
     <string name="bt_manual_button">직접 입력</string>
+    <string name="bt_permission_button">권한 설정</string>
     <string name="bt_manual_title">블루투스 이름 직접 입력</string>
     <string name="bt_manual_message">차에 연결됐을 때 표시되는 기기 이름과 정확히 같아야 해요.</string>
     <string name="bt_manual_hint">예: CAR-AUDIO</string>
@@ -160,7 +164,7 @@
 
     <!-- ── 구역 편집 ──────────────────────────────────────────────────────── -->
     <!-- 블록 편집 -->
-    <string name="zone_blocks_guide">블록을 눌러 이름을 바꾸거나 지우고, 길게 눌러 끌면 순서를 바꿀 수 있어요.
+    <string name="zone_blocks_guide">블록을 눌러 이름을 바꾸거나 지우고, 길게 눌러 끌면 순서를 바꿀 수 있어요. 키보드에서는 Alt 또는 Ctrl과 ←/→를 함께 누르세요.
 층과 구역을 조합해 실제 버튼이 만들어져요 (층 B1·B2 + 구역 A·B → B1-A, B1-B, B2-A, B2-B).</string>
     <string name="zone_rows_blocks_label">층 %1$d / %2$d</string>
     <string name="zone_cols_blocks_label">구역 %1$d / %2$d</string>
@@ -171,6 +175,9 @@
     <string name="zone_etc_blocks_name">기타 구역</string>
     <string name="zone_block_cd">%1$s, 눌러서 수정, 길게 눌러 이동</string>
     <string name="zone_block_add">블록 추가</string>
+    <string name="zone_move_previous">앞으로 이동</string>
+    <string name="zone_move_next">뒤로 이동</string>
+    <string name="zone_move_announce">%1$s, %2$d번째로 이동했어요</string>
     <string name="zone_block_hint">예: B1</string>
     <string name="zone_block_add_title">%1$s 추가</string>
     <string name="zone_block_edit_title">%1$s 수정</string>
@@ -272,7 +279,7 @@
     <string name="location_denied">위치 권한이 없으면 이 기능을 쓸 수 없어요</string>
     <string name="location_denied_capture">위치 권한이 없으면 주차장 위치를 저장할 수 없어요</string>
     <string name="location_bg_title">\'항상 허용\'이 필요해요</string>
-    <string name="location_bg_message">차에서 내리는 순간은 앱이 꺼져 있을 때라, 위치 권한을 \'항상 허용\'으로 바꿔야 어느 주차장인지 알 수 있어요.\n\n설정 → 권한 → 위치 → \'항상 허용\'을 선택해 주세요. 좌표는 기기 안에서만 쓰고 어디로도 보내지 않아요.</string>
+    <string name="location_bg_message">차에서 내리는 순간은 앱이 꺼져 있을 때라, 위치 권한을 \'항상 허용\'으로 바꿔야 어느 주차장인지 알 수 있어요.\n\n설정 → 권한 → 위치 → \'항상 허용\'을 선택해 주세요. 좌표는 위치 판정과 주차 시점 위치 저장에 기기 안에서 사용해요.</string>
     <string name="location_open_settings">설정 열기</string>
     <string name="location_settings_failed">설정 화면을 열지 못했어요</string>
     <string name="location_accuracy">%1$s 측정 · 오차 약 %2$dm</string>
@@ -323,11 +330,11 @@
     <string name="onboarding_bt_label">차 블루투스</string>
     <string name="onboarding_bt_body">탭하면 페어링된 기기 목록에서 고를 수 있어요. 지금 차에 안 타고 있다면 비워 두고 나중에 설정에서 골라도 돼요.</string>
     <string name="onboarding_perm_title">권한 두 개만 먼저</string>
-    <string name="onboarding_perm_body">이 둘이 없으면 차에서 내릴 때 자동으로 알려 줄 수가 없어요.\n아래 권한만 쓰고, 어떤 정보도 기기 밖으로 내보내지 않아요.</string>
+    <string name="onboarding_perm_body">이 둘이 없으면 차에서 내릴 때 자동으로 알려 줄 수가 없어요.\n블루투스·알림 정보는 기기 안에서만 처리해요.</string>
     <string name="onboarding_perm_notify">알림</string>
     <string name="onboarding_perm_notify_detail">주차 위치를 남길지 묻고, 출차 시간을 알려 줘요.</string>
     <string name="onboarding_perm_bt">근처 기기 (블루투스)</string>
-    <string name="onboarding_perm_bt_detail">차 블루투스가 끊기는 순간만 감지해요. 위치 추적은 하지 않아요.</string>
+    <string name="onboarding_perm_bt_detail">차 블루투스가 끊기는 순간만 감지해요. 블루투스 권한으로 위치를 추적하지 않아요.</string>
     <string name="onboarding_perm_note">상주 알림이나 배터리 최적화 해제는 요구하지 않아요.</string>
     <string name="onboarding_perm_allow">권한 허용하기</string>
     <string name="onboarding_vehicle_required">차량 이름을 입력해 주세요</string>
@@ -382,7 +389,7 @@
     <string name="location_tab_title">내 차 위치</string>
     <string name="location_to_car">내 차까지</string>
     <string name="location_copy">복사</string>
-    <string name="location_copied">주소를 복사했어요</string>
+    <string name="location_copied">좌표를 복사했어요</string>
     <string name="location_open_map">지도 앱으로 열기</string>
     <string name="location_refresh">현재 위치 다시 잡기</string>
     <string name="location_no_map_app">지도 앱을 찾을 수 없어요</string>
@@ -393,8 +400,7 @@
     <string name="location_bearing">%1$s · 도보 약 %2$d분</string>
     <string name="location_bearing_far">%1$s 방향</string>
     <string name="location_here">거의 다 왔어요</string>
-    <string name="location_address_loading">주소를 찾는 중…</string>
-    <string name="location_address_none">주소를 찾지 못했어요</string>
+    <string name="location_accuracy_warning">저장된 위치 또는 현재 위치의 정확도가 낮아 방향을 표시하지 않아요.</string>
     <string name="location_waiting">내 위치를 잡는 중…</string>
 
     <string name="location_empty_no_record">아직 저장된 주차 기록이 없어요.\n홈에서 구역을 누르면 그 순간의 위치도 함께 저장됩니다.</string>
@@ -402,7 +408,7 @@
     <string name="location_empty_no_permission">위치 권한이 없어 차를 어디에 뒀는지 저장하지 못했어요.\n권한을 허용하면 다음 기록부터 표시됩니다.</string>
     <string name="location_empty_action_permission">위치 권한 설정</string>
     <string name="location_empty_action_record">홈으로 가서 기록하기</string>
-    <string name="location_privacy_note">좌표는 이 기기 안에만 저장되고 어디로도 전송되지 않습니다. 지도는 기기에 설치된 지도 앱으로 엽니다.</string>
+    <string name="location_privacy_note">좌표를 개발자 서버로 자동 전송하지 않습니다. 지도 앱으로 열기를 누르면 선택한 지도 앱에 좌표가 전달됩니다.</string>
 
     <string name="dir_n">북쪽</string>
     <string name="dir_ne">북동쪽</string>
@@ -433,7 +439,7 @@
     <string name="ready_test_hint">지금 차에서 내린 것처럼 알림을 띄워 봐요</string>
     <string name="ready_test_sent">알림을 보냈어요. 알림창을 확인해 주세요</string>
     <string name="ready_test_no_vehicle">먼저 차량 블루투스를 등록해 주세요</string>
-    <string name="ready_test_no_permission">알림 권한이 없어 보낼 수 없어요</string>
+    <string name="ready_test_no_permission">알림이 차단되어 보낼 수 없어요. 앱 또는 위치 기록 채널 알림을 켜 주세요</string>
     <string name="ready_bt_no_permission">근처 기기 권한 필요</string>
     <string name="ready_location_off">사용 안 함</string>
 

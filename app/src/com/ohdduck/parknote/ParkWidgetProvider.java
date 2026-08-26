@@ -6,6 +6,7 @@ import android.appwidget.AppWidgetProvider;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.location.Location;
 import android.net.Uri;
 import android.view.View;
 import android.widget.RemoteViews;
@@ -18,6 +19,12 @@ public class ParkWidgetProvider extends AppWidgetProvider {
     static final String EXTRA_ZONE = "zone";
     static final String EXTRA_PROFILE_ID = "profile_id";
     static final String EXTRA_VEHICLE_ID = "vehicle_id";
+    private static final String EXTRA_LOCATION_SNAPSHOT = "location_snapshot";
+    private static final String EXTRA_LOCATION_PRESENT = "location_present";
+    private static final String EXTRA_LOCATION_LAT = "location_lat";
+    private static final String EXTRA_LOCATION_LON = "location_lon";
+    private static final String EXTRA_LOCATION_TIME = "location_time";
+    private static final String EXTRA_LOCATION_ACCURACY = "location_accuracy";
 
     // 위젯은 고정 크기라 설정된 자주 쓰는 구역 중 앞 6개를 표시한다.
     private static final int[] BTN_IDS = {
@@ -32,9 +39,15 @@ public class ParkWidgetProvider extends AppWidgetProvider {
         if (ACTION_RECORD.equals(intent.getAction())) {
             String zone = intent.getStringExtra(EXTRA_ZONE);
             if (zone != null) {
-                String recordId = Store.recordInContext(ctx,
-                        intent.getStringExtra(EXTRA_PROFILE_ID),
-                        intent.getStringExtra(EXTRA_VEHICLE_ID), zone, "");
+                String profileId = intent.getStringExtra(EXTRA_PROFILE_ID);
+                String vehicleId = intent.getStringExtra(EXTRA_VEHICLE_ID);
+                String recordId;
+                if (intent.getBooleanExtra(EXTRA_LOCATION_SNAPSHOT, false)) {
+                    recordId = Store.recordInContextUsingSnapshot(ctx, profileId, vehicleId,
+                            zone, "", locationSnapshot(intent));
+                } else {
+                    recordId = Store.recordInContext(ctx, profileId, vehicleId, zone, "");
+                }
                 Toast.makeText(ctx, recordId == null
                                 ? ctx.getString(R.string.record_context_changed)
                                 : ctx.getString(R.string.record_saved, zone),
@@ -43,6 +56,47 @@ public class ParkWidgetProvider extends AppWidgetProvider {
             return;
         }
         super.onReceive(ctx, intent);
+    }
+
+    /** Adds an event-time location to an action Intent, including an explicit no-fix marker. */
+    static void putLocationSnapshot(Intent intent, Location fix) {
+        intent.putExtra(EXTRA_LOCATION_SNAPSHOT, true);
+        boolean valid = fix != null
+                && Store.validCoordinates(fix.getLatitude(), fix.getLongitude());
+        intent.putExtra(EXTRA_LOCATION_PRESENT, valid);
+        if (!valid) return;
+
+        intent.putExtra(EXTRA_LOCATION_LAT, fix.getLatitude());
+        intent.putExtra(EXTRA_LOCATION_LON, fix.getLongitude());
+        intent.putExtra(EXTRA_LOCATION_TIME, Math.max(0L, fix.getTime()));
+        float savedAccuracy = -1f;
+        if (fix.hasAccuracy()) {
+            float accuracy = fix.getAccuracy();
+            if (!Float.isNaN(accuracy) && !Float.isInfinite(accuracy) && accuracy >= 0) {
+                savedAccuracy = accuracy;
+            }
+        }
+        // Always overwrite optional values as well. A FLAG_UPDATE_CURRENT PendingIntent may
+        // otherwise retain metadata from an older disconnect action with the same identity.
+        intent.putExtra(EXTRA_LOCATION_ACCURACY, savedAccuracy);
+    }
+
+    private static Location locationSnapshot(Intent intent) {
+        if (!intent.getBooleanExtra(EXTRA_LOCATION_PRESENT, false)) return null;
+        double lat = intent.getDoubleExtra(EXTRA_LOCATION_LAT, Double.NaN);
+        double lon = intent.getDoubleExtra(EXTRA_LOCATION_LON, Double.NaN);
+        if (!Store.validCoordinates(lat, lon)) return null;
+
+        Location fix = new Location("bt-disconnect");
+        fix.setLatitude(lat);
+        fix.setLongitude(lon);
+        long time = intent.getLongExtra(EXTRA_LOCATION_TIME, 0);
+        if (time > 0) fix.setTime(time);
+        float accuracy = intent.getFloatExtra(EXTRA_LOCATION_ACCURACY, -1f);
+        if (!Float.isNaN(accuracy) && !Float.isInfinite(accuracy) && accuracy >= 0) {
+            fix.setAccuracy(accuracy);
+        }
+        return fix;
     }
 
     @Override

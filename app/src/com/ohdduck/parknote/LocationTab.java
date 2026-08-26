@@ -9,12 +9,9 @@ import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
-import android.location.Address;
-import android.location.Geocoder;
 import android.location.Location;
 import android.net.Uri;
-import android.os.Handler;
-import android.os.Looper;
+import android.view.Surface;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
@@ -23,23 +20,20 @@ import android.widget.Toast;
 
 import org.json.JSONObject;
 
-import java.util.List;
 import java.util.Locale;
 
 /**
  * 위치 탭 — "내 차까지 얼마나 남았나".
  *
- * <p><b>지도 타일은 그리지 않는다.</b> 타일을 띄우려면 지도 SDK와 INTERNET 권한이
- * 필요하고, 그러면 "좌표는 기기 밖으로 나가지 않는다"는 이 앱의 약속(개인정보
- * 처리방침에 명시)이 깨진다. 실제로 필요한 정보 — 거리, 방향, 주소 — 는 전부
- * 기기 안에서 만들 수 있다:
+ * <p><b>지도 타일은 그리지 않는다.</b> 앱 자체는 좌표를 네트워크로 전송하지 않고,
+ * 실제로 필요한 정보 — 거리, 방향, 좌표 — 를 전부 기기 안에서 만든다:
  * <ul>
  *   <li>거리: {@link Store#metersBetween} (이미 있던 하버사인)</li>
  *   <li>방향: 두 좌표의 방위각 − 나침반이 읽은 기기 방위</li>
- *   <li>주소: {@link Geocoder} — 시스템 서비스라 앱에 INTERNET 권한이 필요 없다</li>
+ *   <li>좌표: 저장된 위경도를 네트워크 없이 사람이 읽을 문자열로 변환</li>
  * </ul>
- * 진짜 지도가 필요한 순간에는 {@code geo:} 인텐트로 사용자가 이미 쓰는 지도 앱에
- * 넘긴다. 우리가 좌표를 어디로 보내는 게 아니라, 사용자가 자기 앱을 여는 것이다.
+ * 사용자가 "지도 앱으로 열기"를 명시적으로 누른 경우에만 {@code geo:} 인텐트로
+ * 선택한 외부 지도 앱에 좌표를 전달한다.
  *
  * <p>나침반은 이 탭이 보일 때만 켠다. 항상 켜 두면 다른 탭을 보는 내내 센서가
  * 돌아 배터리를 먹는데, 이 앱은 "배터리를 거의 안 쓴다"를 설계 전제로 삼고 있다.
@@ -52,6 +46,15 @@ class LocationTab {
     /** 이보다 가까우면 거리 대신 "거의 다 왔어요"를 띄운다. GPS 오차가 이 정도다. */
     private static final int ARRIVED_M = 15;
 
+    /** 저장 시점보다 이만큼 오래된 좌표는 방향·도착 판정에 쓰지 않는다. */
+    private static final long MAX_STORED_FIX_AGE_MS = 30 * 60 * 1000L;
+
+    /** 저장 시각보다 조금 미래인 fix는 서로 다른 시계 읽기 순서를 감안해 허용한다. */
+    private static final long FIX_FUTURE_TOLERANCE_MS = 2 * 60 * 1000L;
+
+    /** 이보다 오차가 큰 위치는 15m 도착 판정과 나침반을 확정적으로 보여주지 않는다. */
+    private static final float MAX_RELIABLE_ACCURACY_M = 50f;
+
     private final Activity host;
     private final Runnable goHome;
 
@@ -59,8 +62,8 @@ class LocationTab {
     private final TextView bearingText;
     private final ImageView arrow;
     private final View card;
-    private final View addressRow;
-    private final TextView address;
+    private final View coordinateRow;
+    private final TextView coordinates;
     private final TextView copy;
     private final Button openMap;
     private final Button refresh;
@@ -70,34 +73,51 @@ class LocationTab {
     private final SensorManager sensors;
     private final Sensor rotation;
     private boolean listening;
+    private boolean visible;
+    private long fixGeneration;
+    private Nearby.FixRequest pendingFix;
 
     /** 차 좌표. 없으면 안내 문구 모드. */
     private double carLat;
     private double carLon;
     private boolean hasCar;
+    private boolean carFixReliable;
 
     /** 내 좌표. 아직 못 잡았으면 hasMe가 false. */
     private double myLat;
     private double myLon;
     private boolean hasMe;
+    private boolean myFixReliable;
 
     /** 차가 있는 방위각(내 위치 기준, 0=북). 나침반과 빼서 화살표를 돌린다. */
     private float carBearing;
 
-    /** 지오코딩 결과가 늦게 도착했을 때 이미 다른 기록을 보고 있으면 버린다. */
-    private String addressToken;
-
     private final SensorEventListener compass = new SensorEventListener() {
         private final float[] matrix = new float[9];
+        private final float[] remapped = new float[9];
         private final float[] orientation = new float[3];
         private float shown = Float.NaN;
 
         @Override
         public void onSensorChanged(SensorEvent event) {
-            SensorManager.getRotationMatrixFromVector(matrix, event.values);
-            SensorManager.getOrientation(matrix, orientation);
+            if (!canUseCompass()) {
+                stopCompass();
+                return;
+            }
+            if (event == null || event.values == null || event.values.length < 3) return;
+            try {
+                SensorManager.getRotationMatrixFromVector(matrix, event.values);
+            } catch (IllegalArgumentException ignored) {
+                return;
+            }
+            int displayRotation = host.getWindowManager().getDefaultDisplay().getRotation();
+            if (!SensorManager.remapCoordinateSystem(
+                    matrix, displayAxisX(displayRotation), displayAxisY(displayRotation),
+                    remapped)) return;
+            SensorManager.getOrientation(remapped, orientation);
             float azimuth = (float) Math.toDegrees(orientation[0]);
             float target = normalize(carBearing - azimuth);
+            if (!isFinite(target)) return;
             // 센서는 초당 수십 번 올라온다. 1도 미만 변화까지 매번 뷰를 돌리면
             // 화살표가 떨리기만 하고 정보는 늘지 않는다.
             if (!Float.isNaN(shown) && Math.abs(delta(target, shown)) < 2f) return;
@@ -117,8 +137,8 @@ class LocationTab {
         this.distance = host.findViewById(R.id.locDistance);
         this.bearingText = host.findViewById(R.id.locBearing);
         this.arrow = host.findViewById(R.id.locArrow);
-        this.addressRow = host.findViewById(R.id.locAddressRow);
-        this.address = host.findViewById(R.id.locAddress);
+        this.coordinateRow = host.findViewById(R.id.locAddressRow);
+        this.coordinates = host.findViewById(R.id.locAddress);
         this.copy = host.findViewById(R.id.locCopy);
         this.openMap = host.findViewById(R.id.locOpenMap);
         this.refresh = host.findViewById(R.id.locRefresh);
@@ -129,8 +149,8 @@ class LocationTab {
         this.rotation = sensors == null
                 ? null : sensors.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR);
 
-        addressRow.setOnClickListener(v -> copyAddress());
-        copy.setOnClickListener(v -> copyAddress());
+        coordinateRow.setOnClickListener(v -> copyCoordinates());
+        copy.setOnClickListener(v -> copyCoordinates());
         openMap.setOnClickListener(v -> openInMapApp());
         refresh.setOnClickListener(v -> requestFreshFix());
     }
@@ -139,12 +159,21 @@ class LocationTab {
 
     /** 탭이 보이기 시작했다. 나침반은 render()가 조건을 보고 켠다. */
     void onShow() {
+        visible = true;
+        if (!hostIsAlive()) return;
         render();
     }
 
-    /** 탭을 벗어났거나 앱이 백그라운드로 갔다. 센서를 반드시 끈다. */
+    /** 탭을 벗어났거나 앱이 백그라운드로 갔다. 센서와 단발 측위를 반드시 끈다. */
     void onHide() {
+        visible = false;
+        cancelPendingFix();
         stopCompass();
+    }
+
+    /** Activity가 끝날 때도 탭 상태와 무관하게 남은 시스템 콜백을 정리한다. */
+    void onDestroy() {
+        onHide();
     }
 
     /**
@@ -154,18 +183,29 @@ class LocationTab {
      * 되는데, 그건 "북쪽에 차가 있다"는 틀린 정보다. 화살표를 숨기는 것으로는
      * 부족하고 센서도 같이 꺼야 배터리를 안 쓴다.
      */
-    private void startCompass() {
-        if (listening || sensors == null || rotation == null || !hasCar || !hasMe) return;
+    private boolean startCompass() {
+        if (listening) return true;
+        if (sensors == null || rotation == null || !canUseCompass()) return false;
         // UI 지연은 초당 ~5회로 충분하다. 방향 화살표는 사람이 걸으면서 보는 것이라
         // 게임용 샘플링 속도가 필요 없다.
-        sensors.registerListener(compass, rotation, SensorManager.SENSOR_DELAY_UI);
-        listening = true;
+        listening = sensors.registerListener(
+                compass, rotation, SensorManager.SENSOR_DELAY_UI);
+        return listening;
     }
 
     private void stopCompass() {
         if (!listening || sensors == null) return;
         sensors.unregisterListener(compass);
         listening = false;
+    }
+
+    private boolean canUseCompass() {
+        return visible && hostIsAlive() && hasCar && hasMe
+                && carFixReliable && myFixReliable;
+    }
+
+    private boolean hostIsAlive() {
+        return !host.isFinishing() && !host.isDestroyed();
     }
 
     // ---------- 그리기 ----------
@@ -176,6 +216,12 @@ class LocationTab {
         if (hasCar) {
             carLat = Store.recordLat(latest);
             carLon = Store.recordLon(latest);
+            carFixReliable = storedFixIsReliable(
+                    latest.optLong("t", 0L),
+                    Store.recordLocationTime(latest),
+                    Store.recordLocationAccuracy(latest));
+        } else {
+            carFixReliable = false;
         }
 
         if (!hasCar) {
@@ -185,27 +231,31 @@ class LocationTab {
         }
 
         card.setVisibility(View.VISIBLE);
-        addressRow.setVisibility(View.VISIBLE);
+        coordinateRow.setVisibility(View.VISIBLE);
         openMap.setVisibility(View.VISIBLE);
         refresh.setVisibility(View.VISIBLE);
+        refresh.setEnabled(pendingFix == null);
         empty.setVisibility(View.GONE);
         emptyAction.setVisibility(View.GONE);
 
         Location me = Nearby.lastFix(host);
-        hasMe = me != null;
+        hasMe = Nearby.isValid(me);
         if (hasMe) {
             myLat = me.getLatitude();
             myLon = me.getLongitude();
+            myFixReliable = hasReliableAccuracy(me);
+        } else {
+            myFixReliable = false;
         }
         // 나침반은 renderDistance가 켜고 끈다. 여기서 한 번 더 켜면 "거의 다 왔어요"
         // 상태에서 방금 끈 센서를 되살리게 된다.
         renderDistance();
-        loadAddress();
+        coordinates.setText(formatCoordinates(carLat, carLon));
     }
 
     private void renderDistance() {
         if (!hasMe) {
-            // 차 좌표는 아는데 내 위치를 모르는 상태. 주소와 지도 열기는 여전히
+            // 차 좌표는 아는데 내 위치를 모르는 상태. 좌표 복사와 지도 열기는 여전히
             // 쓸모가 있으므로 거리만 대기 문구로 둔다.
             distance.setText(R.string.location_waiting);
             bearingText.setText("");
@@ -215,7 +265,15 @@ class LocationTab {
         }
 
         double meters = Store.metersBetween(myLat, myLon, carLat, carLon);
-        if (meters < ARRIVED_M) {
+        if (!isFinite(meters) || meters < 0) {
+            distance.setText(R.string.location_waiting);
+            bearingText.setText("");
+            arrow.setVisibility(View.GONE);
+            stopCompass();
+            return;
+        }
+        boolean reliable = carFixReliable && myFixReliable;
+        if (reliable && meters < ARRIVED_M) {
             // 이 거리에서는 방위각이 GPS 오차에 휘둘려 화살표가 빙빙 돈다.
             distance.setText(R.string.location_here);
             bearingText.setText("");
@@ -228,8 +286,20 @@ class LocationTab {
                 ? host.getString(R.string.location_distance_m, (int) Math.round(meters))
                 : host.getString(R.string.location_distance_km, meters / 1000.0));
 
+        if (!reliable) {
+            bearingText.setText(R.string.location_accuracy_warning);
+            arrow.setVisibility(View.GONE);
+            stopCompass();
+            return;
+        }
+
         carBearing = (float) bearingTo(myLat, myLon, carLat, carLon);
-        startCompass();
+        if (!isFinite(carBearing)) {
+            bearingText.setText(R.string.location_accuracy_warning);
+            arrow.setVisibility(View.GONE);
+            stopCompass();
+            return;
+        }
         String compassName = host.getString(directionName(carBearing));
         int walkMinutes = (int) Math.ceil(meters / WALK_M_PER_MIN);
         // 30분 넘게 걸어갈 거리면 도보 시간은 의미가 없다. 차를 타고 온 곳이거나
@@ -238,13 +308,13 @@ class LocationTab {
                 ? host.getString(R.string.location_bearing, compassName, walkMinutes)
                 : host.getString(R.string.location_bearing_far, compassName));
 
-        arrow.setVisibility(rotation == null ? View.GONE : View.VISIBLE);
+        arrow.setVisibility(startCompass() ? View.VISIBLE : View.GONE);
     }
 
     /** 좌표가 없는 세 가지 이유를 구분해 안내한다. 셋 다 사용자가 할 일이 다르다. */
     private void showEmpty(JSONObject latest) {
         card.setVisibility(View.GONE);
-        addressRow.setVisibility(View.GONE);
+        coordinateRow.setVisibility(View.GONE);
         openMap.setVisibility(View.GONE);
         refresh.setVisibility(View.GONE);
         empty.setVisibility(View.VISIBLE);
@@ -269,57 +339,16 @@ class LocationTab {
         emptyAction.setVisibility(View.GONE);
     }
 
-    // ---------- 주소 ----------
+    // ---------- 좌표 ----------
 
-    /**
-     * 좌표 → 주소. Geocoder는 백엔드에 물어보느라 몇 초가 걸릴 수 있어서 워커
-     * 스레드에서 돌린다. 시스템 서비스로 가는 IPC라 앱에는 INTERNET 권한이 없어도 된다.
-     */
-    private void loadAddress() {
-        if (!Geocoder.isPresent()) {
-            address.setText(R.string.location_address_none);
-            return;
-        }
-        final String token = carLat + "," + carLon;
-        addressToken = token;
-        address.setText(R.string.location_address_loading);
-
-        final double lat = carLat;
-        final double lon = carLon;
-        final Handler main = new Handler(Looper.getMainLooper());
-        new Thread(() -> {
-            String found = null;
-            try {
-                List<Address> list =
-                        new Geocoder(host, Locale.getDefault()).getFromLocation(lat, lon, 1);
-                if (list != null && !list.isEmpty()) found = describe(list.get(0));
-            } catch (Exception ignored) {
-                // 기기에 지오코더 백엔드가 없거나 네트워크가 없으면 그냥 실패한다.
-                // 주소는 거들 뿐이고, 거리와 방향만으로도 차는 찾을 수 있다.
-            }
-            final String result = found;
-            main.post(() -> {
-                // 결과가 오는 사이에 다른 기록을 보고 있으면 버린다.
-                if (!token.equals(addressToken)) return;
-                address.setText(result == null
-                        ? host.getString(R.string.location_address_none) : result);
-            });
-        }, "geocode").start();
+    /** 외부 서비스 없이 기기 안에서 만든, 지도 앱에도 붙여넣기 쉬운 위경도 문자열. */
+    static String formatCoordinates(double latitude, double longitude) {
+        if (!Nearby.validCoordinates(latitude, longitude)) return "";
+        return String.format(Locale.US, "%.6f, %.6f", latitude, longitude);
     }
 
-    /** 한국 주소는 getAddressLine(0)에 "대한민국"이 앞에 붙는다. 그 부분을 떼어 낸다. */
-    private String describe(Address a) {
-        String line = a.getAddressLine(0);
-        if (line == null || line.trim().isEmpty()) return null;
-        String country = a.getCountryName();
-        if (country != null && line.startsWith(country)) {
-            line = line.substring(country.length()).trim();
-        }
-        return line.isEmpty() ? null : line;
-    }
-
-    private void copyAddress() {
-        CharSequence text = address.getText();
+    private void copyCoordinates() {
+        CharSequence text = coordinates.getText();
         if (text == null || text.length() == 0) return;
         ClipboardManager cm =
                 (ClipboardManager) host.getSystemService(Context.CLIPBOARD_SERVICE);
@@ -337,8 +366,8 @@ class LocationTab {
     /**
      * 기기에 설치된 지도 앱으로 넘긴다.
      *
-     * <p>{@code geo:} 인텐트라 우리가 어디로도 좌표를 보내지 않는다. 사용자가 자기
-     * 지도 앱을 여는 것이고, 그 앱이 뭘 하는지는 그 앱의 몫이다.
+     * <p>사용자가 이 버튼을 누른 경우에만 {@code geo:} 인텐트로 선택한 외부 지도 앱에
+     * 좌표가 전달된다. 앱 자체에서 자동으로 네트워크 전송하는 경로는 아니다.
      */
     private void openInMapApp() {
         String label = Uri.encode(Store.latestZone(host) == null
@@ -354,20 +383,88 @@ class LocationTab {
 
     /** 지하 주차장에서 나오면 좌표가 갱신되므로, 눌러서 다시 잡을 길을 준다. */
     private void requestFreshFix() {
+        cancelPendingFix();
+        final long generation = fixGeneration;
+        if (!visible || !hostIsAlive()) return;
         refresh.setEnabled(false);
         distance.setText(R.string.location_waiting);
-        Nearby.requestFix(host, fix -> {
+        final boolean[] delivered = {false};
+        Nearby.FixRequest request = Nearby.requestFreshFix(host, fix -> {
+            delivered[0] = true;
+            if (!canAcceptFix(generation)) return;
+            pendingFix = null;
             refresh.setEnabled(true);
-            hasMe = fix != null;
+            hasMe = Nearby.isValid(fix);
             if (hasMe) {
                 myLat = fix.getLatitude();
                 myLon = fix.getLongitude();
+                myFixReliable = hasReliableAccuracy(fix);
+            } else {
+                myFixReliable = false;
             }
             renderDistance();
         });
+        // 권한/공급자 오류는 위 콜백을 동기 호출한다. 그 경우 이미 완료된 handle을
+        // pending으로 되살리지 않는다.
+        if (!delivered[0] && canAcceptFix(generation)) pendingFix = request;
+    }
+
+    private boolean canAcceptFix(long generation) {
+        return visible && generation == fixGeneration && hostIsAlive();
+    }
+
+    private void cancelPendingFix() {
+        fixGeneration++;
+        Nearby.FixRequest request = pendingFix;
+        pendingFix = null;
+        if (request != null) request.cancel();
+        refresh.setEnabled(true);
     }
 
     // ---------- 방위 계산 ----------
+
+    /** 저장 시점에 이미 오래됐거나 오차가 큰 좌표인지 판별한다. */
+    static boolean storedFixIsReliable(long recordTimeMs, long fixTimeMs, float accuracyM) {
+        if (recordTimeMs <= 0L || fixTimeMs <= 0L) return false;
+        if (!isFinite(accuracyM) || accuracyM < 0f
+                || accuracyM > MAX_RELIABLE_ACCURACY_M) return false;
+        long ageMs = recordTimeMs - fixTimeMs;
+        return ageMs >= -FIX_FUTURE_TOLERANCE_MS && ageMs <= MAX_STORED_FIX_AGE_MS;
+    }
+
+    private static boolean hasReliableAccuracy(Location fix) {
+        if (fix == null || !fix.hasAccuracy()) return false;
+        float accuracy = fix.getAccuracy();
+        return isFinite(accuracy) && accuracy >= 0f
+                && accuracy <= MAX_RELIABLE_ACCURACY_M;
+    }
+
+    /** 화면 회전에 맞춰 센서 좌표축을 기기 화면의 위쪽으로 변환한다. */
+    static int displayAxisX(int displayRotation) {
+        switch (displayRotation) {
+            case Surface.ROTATION_90:
+                return SensorManager.AXIS_Y;
+            case Surface.ROTATION_180:
+                return SensorManager.AXIS_MINUS_X;
+            case Surface.ROTATION_270:
+                return SensorManager.AXIS_MINUS_Y;
+            default:
+                return SensorManager.AXIS_X;
+        }
+    }
+
+    static int displayAxisY(int displayRotation) {
+        switch (displayRotation) {
+            case Surface.ROTATION_90:
+                return SensorManager.AXIS_MINUS_X;
+            case Surface.ROTATION_180:
+                return SensorManager.AXIS_MINUS_Y;
+            case Surface.ROTATION_270:
+                return SensorManager.AXIS_X;
+            default:
+                return SensorManager.AXIS_Y;
+        }
+    }
 
     /** 내 위치에서 차를 볼 때의 방위각(도, 0=북, 시계 방향). */
     private static double bearingTo(double fromLat, double fromLon,
@@ -398,6 +495,10 @@ class LocationTab {
 
     private static float normalize(float degrees) {
         return (degrees % 360 + 360) % 360;
+    }
+
+    private static boolean isFinite(double value) {
+        return !Double.isNaN(value) && !Double.isInfinite(value);
     }
 
     /** 두 각도의 최단 차이 (-180~180). 359도와 1도가 2도 차이임을 알게 한다. */
