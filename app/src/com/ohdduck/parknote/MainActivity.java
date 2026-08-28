@@ -72,6 +72,11 @@ public class MainActivity extends Activity implements ScreenHost, Tabs.Listener 
     private TextView statusMeta;
     private TextView btnProfile;
     private View heroActions;
+    private View setupCard;
+    private TextView setupTitle;
+    private TextView setupBody;
+    private View setupAction;
+    private View setupLater;
     private View detectCard;
     private TextView detectEngine;
     private TextView detectEngineHint;
@@ -193,6 +198,11 @@ public class MainActivity extends Activity implements ScreenHost, Tabs.Listener 
         statusMeta = findViewById(R.id.statusMeta);
         btnProfile = findViewById(R.id.btnProfile);
         heroActions = findViewById(R.id.heroActions);
+        setupCard = findViewById(R.id.setupCard);
+        setupTitle = findViewById(R.id.setupTitle);
+        setupBody = findViewById(R.id.setupBody);
+        setupAction = findViewById(R.id.setupAction);
+        setupLater = findViewById(R.id.setupLater);
         detectCard = findViewById(R.id.detectCard);
         detectEngine = findViewById(R.id.detectEngine);
         detectEngineHint = findViewById(R.id.detectEngineHint);
@@ -492,9 +502,36 @@ public class MainActivity extends Activity implements ScreenHost, Tabs.Listener 
         String currentZone = renderHero(h.optJSONObject(0));
         ZoneGrid.highlight(this, grid, currentZone, colorText);
         ZoneGrid.highlight(this, etcGrid, currentZone, colorSubtext);
+        renderSetupCard();
         renderDetectCard();
         renderHabits();
         renderHistory(h);
+    }
+
+    /**
+     * 준비 카드 — 자동 감지를 완성하려면 남은 것 중 가장 중요한 한 가지.
+     *
+     * <p>온보딩에서 다 요구하면 거부율만 오른다. 대신 여기서 "왜 지금 필요한지" 한 줄과
+     * 버튼 하나를 두고, "나중에"로 접을 수 있게 한다. 다 끝나면 카드가 사라진다.
+     * 전체 목록은 설정 탭의 준비 상태에 그대로 있다.
+     */
+    private void renderSetupCard() {
+        ReadyCheck.Item next = ReadyCheck.nextPending(this);
+        if (next == null) {
+            setupCard.setVisibility(View.GONE);
+            return;
+        }
+        int[] progress = ReadyCheck.progress(this);
+        setupTitle.setText(getString(R.string.setup_title, progress[0], progress[1]));
+        setupBody.setText(getString(R.string.setup_item,
+                getString(next.titleRes), getString(next.reasonRes)));
+        ReadyCheck.Action action = next.action;
+        setupAction.setOnClickListener(v -> ReadyCheck.run(this, action));
+        setupLater.setOnClickListener(v -> {
+            Store.dismissSetup(this, action.name());
+            render();
+        });
+        setupCard.setVisibility(View.VISIBLE);
     }
 
     /**

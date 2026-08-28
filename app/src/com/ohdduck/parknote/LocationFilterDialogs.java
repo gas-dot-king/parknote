@@ -27,6 +27,9 @@ class LocationFilterDialogs {
     static final int REQ_CAPTURE = 24;
     static final int REQ_DRIVE_FOREGROUND = 27;
     static final int REQ_DRIVE_BACKGROUND = 28;
+    /** 준비 카드·온보딩에서 권한만 받을 때. 어떤 기능도 켜지 않는다. */
+    static final int REQ_LOCATION_ONLY = 29;
+    static final int REQ_ALWAYS_ONLY = 30;
 
     /** 주차장 좌표를 새로 잡을 때 기다리는 시간. 실내면 이 안에 못 잡고 포기한다. */
     private static final long CAPTURE_TIMEOUT_MS = 15000L;
@@ -193,10 +196,48 @@ class LocationFilterDialogs {
         Toast.makeText(a, R.string.drive_turned_on, Toast.LENGTH_SHORT).show();
     }
 
+    // ---------- 권한만 ----------
+
+    /** 앱 사용 중 위치. 기록에 좌표를 붙이고 위치 탭을 살리는 데 필요한 전부다. */
+    static void requestLocation(Activity a) {
+        if (Nearby.hasForegroundPermission(a)) return;
+        a.requestPermissions(Nearby.FOREGROUND_PERMISSIONS, REQ_LOCATION_ONLY);
+    }
+
+    /**
+     * 항상 허용. 시스템 다이얼로그 전에 왜 필요한지 앱 안에서 먼저 보여 준다 —
+     * Play 정책이 요구하고, 사용자도 "항상"이라는 말에 이유가 있어야 누른다.
+     */
+    static void requestAlwaysLocation(Activity a) {
+        if (!Nearby.hasForegroundPermission(a)) {
+            requestLocation(a);
+            return;
+        }
+        if (Build.VERSION.SDK_INT < 29 || Nearby.hasPermission(a)) return;
+        new AlertDialog.Builder(a)
+                .setTitle(R.string.location_bg_title)
+                .setMessage(R.string.location_bg_message)
+                .setPositiveButton(R.string.action_ok, (d, w) -> a.requestPermissions(
+                        new String[]{Manifest.permission.ACCESS_BACKGROUND_LOCATION},
+                        REQ_ALWAYS_ONLY))
+                .setNegativeButton(R.string.action_later, null)
+                .show();
+    }
+
     /** 위치 권한 요청 결과를 처리한다. 이 흐름의 결과였으면 true. */
     static boolean handlePermissionResult(Activity a, int requestCode,
                                           String[] permissions, int[] results) {
         boolean granted = Nearby.anyLocationGranted(permissions, results);
+        if (requestCode == REQ_LOCATION_ONLY) {
+            if (granted) notifyChanged(a);
+            else Toast.makeText(a, R.string.location_denied, Toast.LENGTH_LONG).show();
+            return true;
+        }
+        if (requestCode == REQ_ALWAYS_ONLY) {
+            if (granted) notifyChanged(a);
+            else showBackgroundHelp(a);
+            return true;
+        }
         if (requestCode == REQ_FOREGROUND || requestCode == REQ_DRIVE_FOREGROUND) {
             if (!granted) Toast.makeText(a, R.string.location_denied, Toast.LENGTH_LONG).show();
             else if (requestCode == REQ_FOREGROUND) enable(a);

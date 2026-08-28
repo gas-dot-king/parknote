@@ -10,8 +10,21 @@ import android.service.quicksettings.TileService;
 /** 퀵설정 타일: 현재 주차 위치를 바로 보여주고, 누르면 앱을 연다. */
 public class ParkTileService extends TileService {
 
+    // 타일이 놓여 있는지 시스템에 물을 방법이 없다. 추가/제거 콜백에서 직접 적어 둔다.
+    // 이 버전 이전에 놓아 둔 타일은 처음 보일 때(onStartListening) 따라잡는다.
+    @Override
+    public void onTileAdded() {
+        Store.setTileAdded(this, true);
+    }
+
+    @Override
+    public void onTileRemoved() {
+        Store.setTileAdded(this, false);
+    }
+
     @Override
     public void onStartListening() {
+        Store.setTileAdded(this, true);
         Tile t = getQsTile();
         if (t == null) return;
         String zone = Store.latestZone(this);

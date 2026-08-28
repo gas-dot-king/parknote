@@ -21,6 +21,8 @@ public class ParkWidgetProvider extends AppWidgetProvider {
     static final String EXTRA_ZONE = "zone";
     static final String EXTRA_PROFILE_ID = "profile_id";
     static final String EXTRA_VEHICLE_ID = "vehicle_id";
+    /** 연습 알림(온보딩·설정 탭의 테스트). 버튼을 눌러도 저장하지 않고 알림만 거둔다. */
+    static final String EXTRA_PRACTICE = "practice";
     private static final String EXTRA_LOCATION_SNAPSHOT = "location_snapshot";
     private static final String EXTRA_LOCATION_PRESENT = "location_present";
     private static final String EXTRA_LOCATION_LAT = "location_lat";
@@ -52,6 +54,13 @@ public class ParkWidgetProvider extends AppWidgetProvider {
             if (zone != null && !zone.isEmpty()) {
                 String profileId = intent.getStringExtra(EXTRA_PROFILE_ID);
                 String vehicleId = intent.getStringExtra(EXTRA_VEHICLE_ID);
+                if (intent.getBooleanExtra(EXTRA_PRACTICE, false)) {
+                    // 연습이다. 실제 기록이 남으면 첫 사용자가 헷갈린다.
+                    Notify.cancelPark(ctx, vehicleId);
+                    Toast.makeText(ctx, ctx.getString(R.string.practice_tapped, zone),
+                            Toast.LENGTH_LONG).show();
+                    return;
+                }
                 String recordId;
                 if (intent.getBooleanExtra(EXTRA_LOCATION_SNAPSHOT, false)) {
                     recordId = Store.recordInContextUsingSnapshot(ctx, profileId, vehicleId,

@@ -81,6 +81,11 @@ class Store {
     static final String PREF_DRIVE_TRACKING = "drive_tracking";
     /** BtReceiver가 차량별로 본 마지막 연결/해제. 홈 감지 카드의 표시용 상태다. */
     private static final String PREF_BT_STATE = "bt_state";
+    // 기기 상태라 백업에 넣지 않는다.
+    /** 퀵설정 타일이 놓여 있는지. ParkTileService가 추가/제거 콜백에서 적는다. */
+    private static final String PREF_TILE_ADDED = "tile_added";
+    /** 홈 준비 카드에서 "나중에"로 접은 항목(ReadyCheck.Action 이름). */
+    private static final String PREF_SETUP_DISMISSED = "setup_dismissed";
 
     /**
      * 주차장×차량 맥락 하나가 보관하는 기록 수.
@@ -441,6 +446,43 @@ class Store {
 
     static void setDriveTracking(Context c, boolean on) {
         prefs(c).edit().putBoolean(PREF_DRIVE_TRACKING, on).apply();
+    }
+
+    // ---------- 준비 상태 (기기 상태, 백업 제외) ----------
+
+    static boolean tileAdded(Context c) {
+        return prefs(c).getBoolean(PREF_TILE_ADDED, false);
+    }
+
+    static void setTileAdded(Context c, boolean added) {
+        prefs(c).edit().putBoolean(PREF_TILE_ADDED, added).apply();
+    }
+
+    static Set<String> setupDismissed(Context c) {
+        return new HashSet<>(Arrays.asList(
+                prefs(c).getString(PREF_SETUP_DISMISSED, "").split(",")));
+    }
+
+    static void dismissSetup(Context c, String key) {
+        Set<String> keys = setupDismissed(c);
+        keys.add(key);
+        keys.remove("");
+        prefs(c).edit().putString(PREF_SETUP_DISMISSED, String.join(",", keys)).apply();
+    }
+
+    /** 현재 차량의 최근 n개 중 좌표가 안 붙은 기록 수. 지하 주차장 정황을 볼 때 쓴다. */
+    static int recentRecordsWithoutCoords(Context c, int n) {
+        String vehicleId = activeVehicleId(c);
+        JSONArray all = history(c);
+        int seen = 0;
+        int missing = 0;
+        for (int i = 0; i < all.length() && seen < n; i++) {
+            JSONObject e = all.optJSONObject(i);
+            if (e == null || !vehicleId.equals(e.optString("c"))) continue;
+            seen++;
+            if (!recordHasCoords(e)) missing++;
+        }
+        return missing;
     }
 
     static boolean hasCoords(JSONObject profile) {

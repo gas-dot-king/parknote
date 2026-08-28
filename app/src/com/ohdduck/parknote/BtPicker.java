@@ -3,6 +3,7 @@ package com.ohdduck.parknote;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothClass;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothManager;
 import android.text.InputType;
@@ -26,25 +27,45 @@ class BtPicker {
         void onPicked(String name, String address);
     }
 
-    /** 페어링된 기기 {이름, 주소}. 블루투스가 없거나 권한이 없으면 null. */
+    /**
+     * 페어링된 기기 {이름, 주소, 차량이면 "car"}. 차량으로 보이는 기기가 앞에 온다.
+     * 블루투스가 없거나 권한이 없으면 null.
+     *
+     * <p>페어링 목록에는 이어폰·TV·스마트워치가 섞여 있고 차 이름은 "HYUNDAI_1A2B"처럼
+     * 알아보기 어렵다. 기기 종류(카오디오·핸즈프리)를 보면 차가 어느 것인지 힌트를 줄 수 있다.
+     */
     private static ArrayList<String[]> bondedDevices(Activity a) {
         BluetoothManager manager = a.getSystemService(BluetoothManager.class);
         BluetoothAdapter adapter = manager == null ? null : manager.getAdapter();
         if (adapter == null) return null;
-        ArrayList<String[]> devices = new ArrayList<>();
+        ArrayList<String[]> cars = new ArrayList<>();
+        ArrayList<String[]> others = new ArrayList<>();
         try {
             Set<BluetoothDevice> bonded = adapter.getBondedDevices();
-            if (bonded == null) return devices;
+            if (bonded == null) return cars;
             for (BluetoothDevice device : bonded) {
                 String name = device.getName();
-                if (name != null && !name.trim().isEmpty()) {
-                    devices.add(new String[]{name, device.getAddress()});
-                }
+                if (name == null || name.trim().isEmpty()) continue;
+                boolean car = looksLikeCar(device);
+                (car ? cars : others).add(new String[]{name, device.getAddress(), car ? "car" : ""});
             }
         } catch (SecurityException ignored) {
             return null; // BLUETOOTH_CONNECT 미허용
         }
-        return devices;
+        cars.addAll(others);
+        return cars;
+    }
+
+    private static boolean looksLikeCar(BluetoothDevice device) {
+        try {
+            BluetoothClass type = device.getBluetoothClass();
+            if (type == null) return false;
+            int deviceClass = type.getDeviceClass();
+            return deviceClass == BluetoothClass.Device.AUDIO_VIDEO_CAR_AUDIO
+                    || deviceClass == BluetoothClass.Device.AUDIO_VIDEO_HANDSFREE;
+        } catch (SecurityException e) {
+            return false; // 종류를 못 읽으면 힌트만 못 줄 뿐, 목록에는 남는다
+        }
     }
 
     static void show(Activity a, String current, OnPicked onPicked) {
@@ -69,7 +90,10 @@ class BtPicker {
             return;
         }
         ArrayList<String> items = new ArrayList<>();
-        for (String[] device : devices) items.add(label(devices, device));
+        for (String[] device : devices) {
+            String label = label(devices, device);
+            items.add(device[2].isEmpty() ? label : a.getString(R.string.bt_looks_like_car, label));
+        }
         int manualIndex = items.size();
         items.add(a.getString(R.string.bt_manual_entry));
         int clearIndex = -1;

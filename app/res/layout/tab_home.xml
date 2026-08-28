@@ -211,6 +211,62 @@
         </LinearLayout>
 
         <!--
+          준비 카드. 자동 감지를 완성하려면 남은 것 중 가장 중요한 한 가지를 "왜 지금
+          필요한지"와 함께 보여 준다. 나중에로 접을 수 있고, 다 끝나면 사라진다.
+        -->
+        <LinearLayout
+            android:id="@+id/setupCard"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:background="@drawable/bg_card"
+            android:orientation="vertical"
+            android:paddingLeft="18dp"
+            android:paddingTop="14dp"
+            android:paddingRight="10dp"
+            android:paddingBottom="6dp"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/setupTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:fontFamily="sans-serif-medium"
+                android:textColor="@color/accent_text"
+                android:textSize="14sp" />
+
+            <TextView
+                android:id="@+id/setupBody"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:fontFamily="sans-serif"
+                android:lineSpacingMultiplier="1.2"
+                android:textColor="@color/text"
+                android:textSize="13sp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:gravity="end|center_vertical"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/setupLater"
+                    style="@style/InlineAction"
+                    android:text="@string/setup_later"
+                    android:textColor="@color/subtext" />
+
+                <Button
+                    android:id="@+id/setupAction"
+                    style="@style/InlineAction"
+                    android:text="@string/ready_action"
+                    android:textColor="@color/accent_text" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!--
           감지 상태 카드. 시동(블루투스 연결) · 위치 판정을 한 줄씩 보여 주고,
           탭하면 설정 탭의 준비 상태로 넘어간다. 지금까지 이 정보는 알림이 뜰 때만
           간접적으로 드러났고, "왜 알림이 안 오지"를 앱 안에서 확인할 길이 없었다.

@@ -106,12 +106,13 @@ public class BtReceiver extends BroadcastReceiver {
     }
 
     /**
-     * "어디에 대셨어요?" 알림을 띄운다 — 설정 탭의 테스트 알림 경로.
+     * "어디에 대셨어요?" 연습 알림 — 온보딩 완료 화면과 설정 탭의 테스트 경로.
      *
-     * <p>브로드캐스트 수신과 테스트 알림이 같은 코드를 쓴다. 테스트가 다른 경로를 타면
-     * "테스트는 되는데 실제로는 안 온다"를 구별하지 못한다. 초안은 만들지 않으므로 버튼은
-     * 새 기록을 만든다. 토큰은 SettingsTab이 같은 tag/id의 예전 알림을 이번 테스트
-     * 성공으로 착각하지 않게 하는 1회용 표식이다.
+     * <p>브로드캐스트 수신과 같은 코드로 같은 모양의 알림을 띄운다. 테스트가 다른 경로를
+     * 타면 "테스트는 되는데 실제로는 안 온다"를 구별하지 못한다. 다만 버튼은 저장하지 않고
+     * "실제로는 여기서 저장돼요"만 알린다 — 연습으로 남은 진짜 기록은 첫 사용자를 헷갈리게
+     * 한다. 토큰은 SettingsTab이 같은 tag/id의 예전 알림을 이번 테스트 성공으로 착각하지
+     * 않게 하는 1회용 표식이다.
      */
     static void showParkPrompt(Context ctx, JSONObject vehicle, String testToken) {
         Nearby.Where where = Nearby.locate(ctx);
@@ -124,6 +125,7 @@ public class BtReceiver extends BroadcastReceiver {
     private static void showParkPrompt(Context ctx, JSONObject vehicle, String profileId,
                                        Nearby.Where where, String draftId, Location parkingFix,
                                        long eventTime, String testToken) {
+        boolean practice = testToken != null && !testToken.isEmpty();
         NotificationManager nm = Notify.manager(ctx);
         if (nm == null || vehicle == null) return;
         Notify.ensureChannels(ctx);
@@ -162,10 +164,11 @@ public class BtReceiver extends BroadcastReceiver {
                 .setShowWhen(true)
                 .setTimeoutAfter(PROMPT_TIMEOUT_MS)
                 .setAutoCancel(true);
-        if (testToken != null && !testToken.isEmpty()) {
+        if (practice) {
             Bundle extras = new Bundle();
             extras.putString(EXTRA_TEST_TOKEN, testToken);
             nb.addExtras(extras);
+            nb.setSubText(ctx.getString(R.string.practice_subtext));
         }
 
         // 자주 대는 구역 버튼 두 개 + 직접 입력. 위젯과 같은 RECORD 브로드캐스트를 재사용한다.
@@ -175,7 +178,8 @@ public class BtReceiver extends BroadcastReceiver {
         for (int i = 0; i < zones.length; i++) {
             Intent it = recordIntent(ctx, "zone/" + vehicleId + "/" + profileId + "/" + i,
                     profileId, vehicleId, parkingFix, eventTime)
-                    .putExtra(ParkWidgetProvider.EXTRA_ZONE, zones[i]);
+                    .putExtra(ParkWidgetProvider.EXTRA_ZONE, zones[i])
+                    .putExtra(ParkWidgetProvider.EXTRA_PRACTICE, practice);
             nb.addAction(new Notification.Action.Builder(
                     Icon.createWithResource(ctx, R.drawable.ic_notif), zones[i],
                     PendingIntent.getBroadcast(ctx, 200 + i, it,
@@ -185,7 +189,8 @@ public class BtReceiver extends BroadcastReceiver {
         // 직접 입력: 알림에서 바로 타이핑한다. 키보드의 마이크로 말해도 된다. 버튼 두 개에
         // 없는 구역이라고 앱을 열 필요가 없다. 시스템이 입력값을 실어야 하므로 이 하나만 mutable.
         Intent reply = recordIntent(ctx, "reply/" + vehicleId + "/" + profileId,
-                profileId, vehicleId, parkingFix, eventTime);
+                profileId, vehicleId, parkingFix, eventTime)
+                .putExtra(ParkWidgetProvider.EXTRA_PRACTICE, practice);
         int mutable = Build.VERSION.SDK_INT >= 31 ? PendingIntent.FLAG_MUTABLE : 0;
         nb.addAction(new Notification.Action.Builder(
                 Icon.createWithResource(ctx, R.drawable.ic_notif),

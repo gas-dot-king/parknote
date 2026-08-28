@@ -2,6 +2,7 @@ package com.ohdduck.parknote;
 
 import android.app.Activity;
 import android.app.NotificationManager;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Typeface;
 import android.service.notification.StatusBarNotification;
@@ -303,6 +304,11 @@ class SettingsTab {
                 host.getString(R.string.settings_backup),
                 host.getString(R.string.backup_message),
                 v -> BackupFlow.showMenu(host)));
+        // 온보딩을 다시 밟는다. 완료 화면(연습 알림·위젯·권한)을 다시 보고 싶을 때도 이걸로.
+        dataGroup.addView(entry(
+                host.getString(R.string.settings_redo),
+                host.getString(R.string.settings_redo_sub),
+                v -> host.startActivity(new Intent(host, OnboardingActivity.class))));
     }
 
     /** 현재 차량의 블루투스 등록 여부. 감지가 되는지를 여기서 바로 읽을 수 있게. */
