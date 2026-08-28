@@ -1,7 +1,6 @@
 package com.ohdduck.parknote;
 
 import android.app.Notification;
-import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
@@ -38,14 +37,10 @@ public class ParkingTimerReceiver extends BroadcastReceiver {
         // 같은 타이머가 재부팅 뒤 다시 예약되지 않도록 기록에서 먼저 해제한다.
         Store.clearParkingTimer(ctx, recordId);
 
-        NotificationManager nm =
-                (NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
+        NotificationManager nm = Notify.manager(ctx);
         if (nm == null) return;
+        Notify.ensureChannels(ctx);
         String brand = ctx.getString(R.string.app_name);
-        // 기존 알림 권한/소리 설정은 그대로 두고 채널 표시명만 새 브랜드로 갱신한다.
-        nm.createNotificationChannel(new NotificationChannel(
-                Store.CHANNEL_TIMER, ctx.getString(R.string.timer_channel, brand),
-                NotificationManager.IMPORTANCE_HIGH));
 
         Intent openIntent = new Intent(ctx, MainActivity.class)
                 .setData(Uri.fromParts("parknote", "record/" + recordId, null))
@@ -59,13 +54,13 @@ public class ParkingTimerReceiver extends BroadcastReceiver {
         String detail = Store.recordProfileName(ctx, entry) + " · " + zone;
         String memo = Store.recordMemo(entry);
         if (!memo.isEmpty()) detail += " · " + memo;
-        Notification notification = new Notification.Builder(ctx, Store.CHANNEL_TIMER)
+        Notification notification = new Notification.Builder(ctx, Notify.CHANNEL_TIMER)
                 .setSmallIcon(R.drawable.ic_notif)
                 .setContentTitle(ctx.getString(R.string.timer_notification_title, brand))
                 .setContentText(detail)
                 .setContentIntent(open)
                 .setAutoCancel(true)
                 .build();
-        nm.notify("timer:" + recordId, Store.NOTIF_ID_TIMER, notification);
+        nm.notify(Notify.timerTag(recordId), Notify.ID_TIMER, notification);
     }
 }

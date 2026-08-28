@@ -1,7 +1,6 @@
 package com.ohdduck.parknote;
 
 import android.app.Notification;
-import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.bluetooth.BluetoothDevice;
@@ -21,15 +20,18 @@ import org.json.JSONObject;
  * 다시 연결되면(순간 끊김 오탐, 재승차) 알림을 거둔다.
  * 알림의 최근 구역 버튼으로 앱을 열지 않고 바로 기록할 수 있다.
  *
- * <p>알림이 뜨려면 조건 셋이 전부 맞아야 한다. ① 차량에 블루투스 이름이 등록돼
- * 있고, ② 그 이름이 끊긴 기기 이름과 정확히 같고, ③ BLUETOOTH_CONNECT 권한이 있어
- * 기기 이름을 읽을 수 있어야 한다. 셋 중 하나만 어긋나도 조용히 아무 일도 일어나지
- * 않으므로, 설정 탭의 준비 상태 카드가 이 조건들을 미리 보여 주고
- * {@link #showParkPrompt}는 테스트 알림에서도 그대로 재사용한다.
+ * <p>알림이 뜨려면 ① 차량에 블루투스 기기가 등록돼 있고 ② 그 기기가 끊긴 기기와
+ * 같아야 한다(주소로, 주소가 없으면 이름으로 — 이름은 BLUETOOTH_CONNECT가 있어야
+ * 읽힌다). 하나만 어긋나도 조용히 아무 일도 일어나지 않으므로, 설정 탭의 준비 상태
+ * 카드가 이 조건들을 미리 보여 주고 {@link #showParkPrompt}는 테스트 알림에서도 그대로
+ * 재사용한다.
  */
 public class BtReceiver extends BroadcastReceiver {
 
     static final String EXTRA_TEST_TOKEN = "com.ohdduck.parknote.TEST_TOKEN";
+
+    /** 무시된 알림은 이 뒤에 스스로 사라진다. 밤새 주차했다가 아침에 보는 경우까지는 남긴다. */
+    private static final long PROMPT_TIMEOUT_MS = 24 * 60 * 60 * 1000L;
 
     @Override
     @SuppressWarnings("deprecation")
@@ -41,14 +43,15 @@ public class BtReceiver extends BroadcastReceiver {
         BluetoothDevice dev = Build.VERSION.SDK_INT >= 33
                 ? intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE, BluetoothDevice.class)
                 : intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
+        if (dev == null) return;
         String name = null;
         try {
-            if (dev != null) name = dev.getName();
+            name = dev.getName();
         } catch (SecurityException ignored) {
-            // BLUETOOTH_CONNECT 권한이 없으면 이름을 못 읽는다 → 어느 차인지 알 수
-            // 없으므로 무시한다. 권한이 빠진 상태는 준비 상태 카드가 잡아 준다.
+            // BLUETOOTH_CONNECT 권한이 없으면 이름을 못 읽는다. 주소는 권한 없이 읽히므로
+            // 주소를 저장해 둔 차량은 그래도 맞춰진다.
         }
-        JSONObject vehicle = Store.vehicleMatchingBluetooth(ctx, name);
+        JSONObject vehicle = Store.vehicleMatchingBluetooth(ctx, name, dev.getAddress());
         if (vehicle == null) return;
         String vehicleId = vehicle.optString("id");
 
@@ -57,14 +60,12 @@ public class BtReceiver extends BroadcastReceiver {
         Store.setBtState(ctx, vehicleId, connected);
 
         if (connected) { // 잠깐 끊겼다 다시 붙음 → 방금 띄운 알림은 오탐
-            NotificationManager nm =
-                    (NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
-            if (nm != null) nm.cancel("bt:" + vehicleId, Store.NOTIF_ID_BT);
+            Notify.cancelPark(ctx, vehicleId);
             return;
         }
-        // Freeze the best fix at the disconnect event. The user may tap a zone after walking
-        // away, so reading location again from that later broadcast would save the wrong spot.
-        // 시각도 같이 고정한다. 주차 시각은 버튼을 누른 순간이 아니라 차에서 내린 순간이다.
+        // 끊긴 순간의 좌표와 시각을 고정한다. 사용자는 걸어간 뒤에 버튼을 누를 수 있고,
+        // 그때 다시 읽으면 엉뚱한 자리가 저장된다. 주차 시각도 버튼을 누른 순간이 아니라
+        // 차에서 내린 순간이다.
         Location parkingFix = Nearby.hasPermission(ctx) ? Nearby.lastFix(ctx) : null;
         showParkPrompt(ctx, vehicle, parkingFix, System.currentTimeMillis(), null);
     }
@@ -82,33 +83,21 @@ public class BtReceiver extends BroadcastReceiver {
 
     private static void showParkPrompt(Context ctx, JSONObject vehicle, Location parkingFix,
                                        long eventTime, String testToken) {
-        NotificationManager nm =
-                (NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
+        NotificationManager nm = Notify.manager(ctx);
         if (nm == null || vehicle == null) return;
+        Notify.ensureChannels(ctx);
 
         String vehicleId = vehicle.optString("id");
         String car = vehicle.optString("n", ctx.getString(R.string.vehicle_default_name));
         String brand = ctx.getString(R.string.app_name);
-
-        // 같은 ID로 다시 등록하면 기존 채널의 사용자 설정은 유지하면서 이름만 최신화된다.
-        nm.createNotificationChannel(new NotificationChannel(
-                Store.CHANNEL, ctx.getString(R.string.bt_channel, brand),
-                NotificationManager.IMPORTANCE_HIGH));
 
         // 위치를 알면 그 주차장 기준으로 묻고, 모르는 곳이면 조용한 채널로 내린다.
         // 판정에 실패했을 때는 평소대로 알린다 — 놓치는 쪽이 훨씬 손해다.
         Nearby.Where where = Nearby.locate(ctx);
         String profileId = Store.activeProfileId(ctx);
         if (where.profile != null) profileId = where.profile.optString("id", profileId);
-
-        String channel = Store.CHANNEL;
-        if (!where.shouldAlert()) {
-            channel = Store.CHANNEL_QUIET;
-            nm.createNotificationChannel(new NotificationChannel(
-                    channel, ctx.getString(R.string.bt_channel_quiet, brand),
-                    NotificationManager.IMPORTANCE_LOW));
-        }
         String profileName = Store.profileName(ctx, profileId);
+
         Intent openIntent = new Intent(ctx, MainActivity.class)
                 .setData(Uri.fromParts("parknote", "bt/" + vehicleId, null))
                 .putExtra(ParkWidgetProvider.EXTRA_PROFILE_ID, profileId)
@@ -117,13 +106,18 @@ public class BtReceiver extends BroadcastReceiver {
                 ctx, 0, openIntent,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
-        Notification.Builder nb = new Notification.Builder(ctx, channel)
+        Notification.Builder nb = new Notification.Builder(ctx,
+                where.shouldAlert() ? Notify.CHANNEL_PARK : Notify.CHANNEL_PARK_QUIET)
                 .setSmallIcon(R.drawable.ic_notif)
                 .setContentTitle(ctx.getString(R.string.bt_notification_title, brand, car))
                 .setContentText(where.shouldAlert()
                         ? ctx.getString(R.string.bt_notification_known, profileName)
                         : ctx.getString(R.string.bt_notification_elsewhere))
                 .setContentIntent(open)
+                // 알림의 시각 = 차에서 내린 시각. "언제 내렸는지"가 알림에서 바로 보인다.
+                .setWhen(eventTime)
+                .setShowWhen(true)
+                .setTimeoutAfter(PROMPT_TIMEOUT_MS)
                 .setAutoCancel(true);
         if (testToken != null && !testToken.isEmpty()) {
             Bundle extras = new Bundle();
@@ -151,6 +145,6 @@ public class BtReceiver extends BroadcastReceiver {
                     .build());
         }
 
-        nm.notify("bt:" + vehicleId, Store.NOTIF_ID_BT, nb.build());
+        nm.notify(Notify.parkTag(vehicleId), Notify.ID_PARK, nb.build());
     }
 }

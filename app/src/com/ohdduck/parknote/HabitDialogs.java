@@ -21,18 +21,18 @@ class HabitDialogs {
         Ui.inputDialog(a, a.getString(R.string.habit_add_title),
                 a.getString(R.string.habit_name_hint), null, name -> {
             if (name.isEmpty()) return;
-            if (Store.habitByName(a, name) != null) {
+            if (Habits.byName(a, name) != null) {
                 Toast.makeText(a, R.string.habit_duplicate, Toast.LENGTH_SHORT).show();
                 return;
             }
-            Store.addHabit(a, name);
+            Habits.add(a, name);
             Toast.makeText(a, R.string.habit_added_tip, Toast.LENGTH_LONG).show();
             host.refresh(false);
         });
     }
 
     static void showOptions(Activity a, ScreenHost host, int index) {
-        JSONObject habit = Store.habits(a).optJSONObject(index);
+        JSONObject habit = Habits.all(a).optJSONObject(index);
         if (habit == null) return;
         String name = habit.optString("n");
         int reminder = habit.optInt("r", -1);
@@ -41,7 +41,7 @@ class HabitDialogs {
         items.add(reminder < 0
                 ? a.getString(R.string.habit_reminder_set)
                 : a.getString(R.string.habit_reminder_change,
-                        Store.formatMinutesOfDay(reminder)));
+                        Fmt.minutesOfDay(reminder)));
         if (reminder >= 0) items.add(a.getString(R.string.habit_reminder_clear));
         items.add(a.getString(R.string.action_delete));
 
@@ -51,7 +51,7 @@ class HabitDialogs {
                     if (which == 0) {
                         pickReminderTime(a, host, index, reminder);
                     } else if (reminder >= 0 && which == 1) {
-                        Store.setReminder(a, index, -1);
+                        Habits.setReminder(a, index, -1);
                         Reminders.cancel(a, name);
                         Toast.makeText(a, R.string.habit_reminder_cleared,
                                 Toast.LENGTH_SHORT).show();
@@ -68,10 +68,10 @@ class HabitDialogs {
         int initial = current >= 0 ? current : DEFAULT_REMINDER_MINUTES;
         new TimePickerDialog(a, (view, hour, minute) -> {
             int minutesOfDay = hour * 60 + minute;
-            Store.setReminder(a, index, minutesOfDay);
+            Habits.setReminder(a, index, minutesOfDay);
             Reminders.scheduleAll(a);
             Toast.makeText(a, a.getString(R.string.habit_reminder_daily,
-                    Store.formatMinutesOfDay(minutesOfDay)), Toast.LENGTH_SHORT).show();
+                    Fmt.minutesOfDay(minutesOfDay)), Toast.LENGTH_SHORT).show();
             host.refresh(false);
         }, initial / 60, initial % 60, false).show();
     }
@@ -80,7 +80,7 @@ class HabitDialogs {
         new AlertDialog.Builder(a)
                 .setMessage(a.getString(R.string.habit_delete_confirm, name))
                 .setPositiveButton(R.string.action_delete, (d, w) -> {
-                    Store.deleteHabit(a, index);
+                    Habits.delete(a, index);
                     Reminders.cancel(a, name);
                     host.refresh(false);
                 })

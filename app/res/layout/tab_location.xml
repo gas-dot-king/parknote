@@ -4,8 +4,9 @@
 
   지도 타일은 일부러 그리지 않는다. 타일을 띄우려면 지도 SDK와 INTERNET 권한이
   필요하고 앱 안에서 네트워크 처리가 생긴다. 거리·방향·좌표 문자열은 네트워크 없이
-  기기 안에서 만들고(Store.metersBetween, SensorManager), 사용자가 지도 열기를
+  기기 안에서 만들고(Nearby.metersBetween, SensorManager), 사용자가 지도 열기를
   명시적으로 누른 순간에만 geo: 인텐트로 선택한 지도 앱에 좌표를 넘긴다.
+  내 위치는 이 탭이 보이는 동안만 갱신된다(LocationTab). 따로 "다시 잡기"가 필요 없다.
 -->
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/tabLocation"
@@ -143,21 +144,6 @@
             android:textAllCaps="false"
             android:textColor="@color/on_accent"
             android:textSize="15sp" />
-
-        <Button
-            android:id="@+id/locRefresh"
-            android:layout_width="match_parent"
-            android:layout_height="@dimen/touch_min"
-            android:layout_marginLeft="@dimen/gutter"
-            android:layout_marginRight="@dimen/gutter"
-            android:layout_marginTop="6dp"
-            android:background="@drawable/bg_button"
-            android:fontFamily="sans-serif"
-            android:stateListAnimator="@null"
-            android:text="@string/location_refresh"
-            android:textAllCaps="false"
-            android:textColor="@color/subtext"
-            android:textSize="14sp" />
 
         <!--
           좌표가 없을 때 이 자리를 대신 채운다. 이유가 세 가지라(기록 없음 /

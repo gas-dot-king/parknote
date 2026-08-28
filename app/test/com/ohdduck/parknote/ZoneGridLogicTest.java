@@ -7,17 +7,11 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
-import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.junit.Test;
 
-/**
- * 층×구역 격자 로직과, v2.2 평면 목록을 격자로 되돌리는 마이그레이션 추론.
- *
- * <p>여기가 깨지면 기존 사용자의 구역 구성이 통째로 날아간다. 앱 전체에서 회귀가 가장
- * 무서운 코드인데 지금까지 검증하는 수단이 없었다.
- */
+/** 층×구역 격자 로직과 칸 크기, 주차장 좌표. 평면 목록의 격자 역추론은 MigrationTest에 있다. */
 public class ZoneGridLogicTest {
 
     // ---------- flatten ----------
@@ -53,99 +47,6 @@ public class ZoneGridLogicTest {
         assertEquals("A", cols[0]); // 원본이 오염되면 프로필 하나 수정이 전부에 번진다
     }
 
-    // ---------- inferGrid: 평면 목록 → 격자 역추론 ----------
-
-    @Test
-    public void inferGrid_완전한_곱집합이면_격자로_되돌린다() {
-        String[][] grid = Store.inferGrid(
-                new String[]{"B1-A", "B1-B", "B2-A", "B2-B"}, "-");
-        assertNotNull(grid);
-        assertArrayEquals(new String[]{"B1", "B2"}, grid[0]);
-        assertArrayEquals(new String[]{"A", "B"}, grid[1]);
-    }
-
-    @Test
-    public void inferGrid_한_칸이라도_비면_포기한다() {
-        // B2-B가 없다 → 격자가 아니라 사용자가 손으로 고른 목록이다. 그대로 보존해야 한다.
-        assertNull(Store.inferGrid(new String[]{"B1-A", "B1-B", "B2-A", "B3-A"}, "-"));
-    }
-
-    @Test
-    public void inferGrid_순서가_행우선이_아니면_포기한다() {
-        assertNull(Store.inferGrid(new String[]{"B1-A", "B2-A", "B1-B", "B2-B"}, "-"));
-    }
-
-    @Test
-    public void inferGrid_구분자가_두_번_나오면_포기한다() {
-        assertNull(Store.inferGrid(
-                new String[]{"B1-A-1", "B1-A-2", "B2-A-1", "B2-A-2"}, "-"));
-    }
-
-    @Test
-    public void inferGrid_네_개_미만은_격자로_보지_않는다() {
-        assertNull(Store.inferGrid(new String[]{"B1-A", "B1-B"}, "-"));
-    }
-
-    @Test
-    public void inferGrid_구분자가_맨_앞이나_뒤면_포기한다() {
-        assertNull(Store.inferGrid(new String[]{"-A", "-B", "B2-A", "B2-B"}, "-"));
-        assertNull(Store.inferGrid(new String[]{"B1-", "B1-B", "B2-", "B2-B"}, "-"));
-    }
-
-    // ---------- applyFlatZones: 마이그레이션 진입점 ----------
-
-    @Test
-    public void applyFlatZones_격자로_떨어지면_행과_열로_나눈다() throws JSONException {
-        JSONObject profile = new JSONObject();
-        Store.applyFlatZones(profile,
-                new String[]{"B1-A", "B1-B", "B2-A", "B2-B"});
-
-        assertEquals("-", profile.getString("sep"));
-        assertArrayEquals(new String[]{"B1", "B2"}, toArray(profile.getJSONArray("rows")));
-        assertArrayEquals(new String[]{"A", "B"}, toArray(profile.getJSONArray("cols")));
-    }
-
-    @Test
-    public void applyFlatZones_언더바_구분자도_알아본다() throws JSONException {
-        JSONObject profile = new JSONObject();
-        Store.applyFlatZones(profile,
-                new String[]{"B1_A", "B1_B", "B2_A", "B2_B"});
-
-        assertEquals("_", profile.getString("sep"));
-        assertArrayEquals(new String[]{"B1", "B2"}, toArray(profile.getJSONArray("rows")));
-    }
-
-    @Test
-    public void applyFlatZones_격자가_아니면_1차원으로_보존한다() throws JSONException {
-        JSONObject profile = new JSONObject();
-        String[] flat = {"정문 앞", "지하 입구", "옥상", "길가"};
-        Store.applyFlatZones(profile, flat);
-
-        assertEquals(0, profile.getJSONArray("rows").length()); // 층 없음
-        assertArrayEquals(flat, toArray(profile.getJSONArray("cols")));
-    }
-
-    @Test
-    public void applyFlatZones_왕복해도_구역_이름이_그대로다() throws JSONException {
-        // 마이그레이션의 핵심 불변조건: 무슨 일이 있어도 저장된 구역 이름은 안 바뀐다.
-        String[][] cases = {
-                {"B1-A", "B1-B", "B2-A", "B2-B"},
-                {"B1_A", "B1_B", "B2_A", "B2_B"},
-                {"정문 앞", "지하 입구", "옥상", "길가"},
-                {"A", "B", "C"},
-                {"B1-A", "B1-B", "B2-A", "B3-A"},
-        };
-        for (String[] flat : cases) {
-            JSONObject profile = new JSONObject();
-            Store.applyFlatZones(profile, flat);
-            String[] back = Store.flatten(
-                    toArray(profile.getJSONArray("rows")),
-                    toArray(profile.getJSONArray("cols")),
-                    profile.getString("sep"));
-            assertArrayEquals("왕복 실패: " + String.join(", ", flat), flat, back);
-        }
-    }
-
     // ---------- 상한 ----------
 
     @Test
@@ -153,6 +54,14 @@ public class ZoneGridLogicTest {
         assertEquals(Store.MAX_COLS, Store.colLimit(new String[]{"B1"}));
         assertEquals(Store.MAX_FLAT_ZONES, Store.colLimit(new String[0]));
         assertEquals(Store.MAX_FLAT_ZONES, Store.colLimit(null));
+    }
+
+    @Test
+    public void 기타_구역_상한은_목록형_구역_상한과_같다() {
+        // README가 "기타 구역은 0~30개"라고 약속한다. 화면(ZoneSettingsActivity)과
+        // 저장 검증(Store.setGrid)이 같은 상수를 보므로 여기서 값만 못 박는다.
+        assertEquals(30, Store.MAX_ETC_ZONES);
+        assertEquals(Store.MAX_FLAT_ZONES, Store.MAX_ETC_ZONES);
     }
 
     // ---------- 라벨 생성 ----------
@@ -226,34 +135,17 @@ public class ZoneGridLogicTest {
         assertTrue(ZoneGrid.cellHeightDp(8, true, true) < ZoneGrid.MIN_TOUCH_DP);
     }
 
-    // ---------- 칸 폭 ----------
-
-    @Test
-    public void cellWidthDp_6열부터_8열까지_48dp_폭을_보장한다() {
-        // 실제 홈 격자는 이 값을 고정 폭으로 적용하고 하나의 가로 스크롤 안에 넣는다.
-        // 열 수가 늘었다고 폭을 줄이면 높이만 48dp인 가늘고 잘못 누르기 쉬운 칸이 된다.
-        for (int cols = 6; cols <= Store.MAX_COLS; cols++) {
-            assertTrue("격자 " + cols + "구역: " + ZoneGrid.cellWidthDp(cols, true, false),
-                    ZoneGrid.cellWidthDp(cols, true, false) >= ZoneGrid.MIN_TOUCH_DP);
-        }
-    }
-
-    @Test
-    public void cellWidthDp_미리보기는_폭_하한을_적용받지_않는다() {
-        assertTrue(ZoneGrid.cellWidthDp(8, true, true) < ZoneGrid.MIN_TOUCH_DP);
-    }
-
     // ---------- 거리 ----------
 
     @Test
     public void metersBetween_같은_지점은_0() {
-        assertEquals(0.0, Store.metersBetween(37.5665, 126.9780, 37.5665, 126.9780), 0.001);
+        assertEquals(0.0, Nearby.metersBetween(37.5665, 126.9780, 37.5665, 126.9780), 0.001);
     }
 
     @Test
     public void metersBetween_서울시청에서_약_300m() {
         // 위도 0.0027도 ≈ 300m. 판정 반경이 이 스케일이라 여기가 맞아야 한다.
-        double d = Store.metersBetween(37.5665, 126.9780, 37.5692, 126.9780);
+        double d = Nearby.metersBetween(37.5665, 126.9780, 37.5692, 126.9780);
         assertTrue("실제: " + d, d > 280 && d < 320);
     }
 
@@ -268,21 +160,5 @@ public class ZoneGridLogicTest {
         assertFalse(Store.hasCoords(null));
         assertFalse(Store.hasCoords(new JSONObject().put("lat", 37.5)));
         assertTrue(Store.hasCoords(new JSONObject().put("lat", 37.5).put("lon", 127.0)));
-    }
-
-    // ---------- 기타 구역 상한 ----------
-
-    @Test
-    public void 기타_구역_상한은_목록형_구역_상한과_같다() {
-        // README가 "기타 구역은 0~30개"라고 약속한다. 화면(ZoneSettingsActivity)과
-        // 저장 검증(Store.setGrid)이 같은 상수를 보므로 여기서 값만 못 박는다.
-        assertEquals(30, Store.MAX_ETC_ZONES);
-        assertEquals(Store.MAX_FLAT_ZONES, Store.MAX_ETC_ZONES);
-    }
-
-    private static String[] toArray(JSONArray a) {
-        String[] out = new String[a.length()];
-        for (int i = 0; i < a.length(); i++) out[i] = a.optString(i);
-        return out;
     }
 }

@@ -127,7 +127,7 @@ class BackupFlow {
     /** "언제 저장한 백업이고 무엇이 몇 개 들었는지" 한 줄. */
     private static String summary(Activity a, Backup.Loaded loaded) {
         String when = loaded.savedAt > 0
-                ? Store.formatFull(loaded.savedAt)
+                ? Fmt.full(loaded.savedAt)
                 : a.getString(R.string.backup_saved_unknown);
         return a.getString(R.string.backup_summary, when,
                 loaded.counts[0], loaded.counts[1], loaded.counts[2], loaded.counts[3]);

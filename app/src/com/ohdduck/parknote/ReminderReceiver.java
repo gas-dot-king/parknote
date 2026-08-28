@@ -1,7 +1,6 @@
 package com.ohdduck.parknote;
 
 import android.app.Notification;
-import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
@@ -37,10 +36,8 @@ public class ReminderReceiver extends BroadcastReceiver {
         if (Reminders.ACTION_CHECK.equals(action)) { // 알림의 "지금 체크" 버튼
             String checkName = intent.getStringExtra(Reminders.EXTRA_NAME);
             if (checkName == null) return;
-            Store.checkTodayByName(ctx, checkName);
-            NotificationManager m =
-                    (NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
-            if (m != null) m.cancel(checkName, Store.NOTIF_ID_HABIT);
+            Habits.checkTodayByName(ctx, checkName);
+            Notify.cancelHabit(ctx, checkName);
             return;
         }
 
@@ -48,23 +45,19 @@ public class ReminderReceiver extends BroadcastReceiver {
 
         String name = intent.getStringExtra(Reminders.EXTRA_NAME);
         if (name == null) return;
-        JSONObject h = Store.habitByName(ctx, name);
+        JSONObject h = Habits.byName(ctx, name);
         if (h == null) return; // 삭제된 항목의 잔여 알람
         int r = h.optInt("r", -1);
         if (r < 0) return;     // 리마인더가 해제된 항목
 
         Reminders.schedule(ctx, name, r); // 내일 알람 예약
 
-        if (Store.checkedToday(h)) return; // 이미 했으면 조용히
+        if (Habits.checkedToday(h)) return; // 이미 했으면 조용히
 
-        NotificationManager nm =
-                (NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
+        NotificationManager nm = Notify.manager(ctx);
         if (nm == null) return;
-
+        Notify.ensureChannels(ctx);
         String brand = ctx.getString(R.string.app_name);
-        nm.createNotificationChannel(new NotificationChannel(
-                Store.CHANNEL_HABIT, ctx.getString(R.string.habit_channel, brand),
-                NotificationManager.IMPORTANCE_HIGH));
 
         PendingIntent open = PendingIntent.getActivity(
                 ctx, 1, new Intent(ctx, MainActivity.class),
@@ -78,7 +71,7 @@ public class ReminderReceiver extends BroadcastReceiver {
         PendingIntent checkPi = PendingIntent.getBroadcast(ctx, 3, check,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
-        Notification n = new Notification.Builder(ctx, Store.CHANNEL_HABIT)
+        Notification n = new Notification.Builder(ctx, Notify.CHANNEL_HABIT)
                 .setSmallIcon(R.drawable.ic_notif)
                 .setContentTitle(name)
                 .setContentText(ctx.getString(R.string.habit_notification_text, brand))
@@ -88,6 +81,6 @@ public class ReminderReceiver extends BroadcastReceiver {
                         Icon.createWithResource(ctx, R.drawable.ic_notif),
                         ctx.getString(R.string.habit_check_now), checkPi).build())
                 .build();
-        nm.notify(name, Store.NOTIF_ID_HABIT, n); // 이름을 tag로 → 습관끼리 ID 충돌 없음
+        nm.notify(name, Notify.ID_HABIT, n); // 이름을 tag로 → 습관끼리 ID 충돌 없음
     }
 }

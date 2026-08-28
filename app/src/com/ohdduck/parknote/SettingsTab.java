@@ -164,12 +164,12 @@ class SettingsTab {
         NotificationManager manager =
                 (NotificationManager) host.getSystemService(Activity.NOTIFICATION_SERVICE);
         if (manager == null) return false;
-        String expectedTag = "bt:" + vehicleId;
+        String expectedTag = Notify.parkTag(vehicleId);
         try {
             StatusBarNotification[] active = manager.getActiveNotifications();
             if (active == null) return false;
             for (StatusBarNotification notification : active) {
-                if (notification.getId() == Store.NOTIF_ID_BT
+                if (notification.getId() == Notify.ID_PARK
                         && expectedTag.equals(notification.getTag())
                         // 같은 tag/id의 예전 알림을 이번 테스트 성공으로 세지 않는다.
                         && notification.getNotification().extras != null
@@ -302,11 +302,7 @@ class SettingsTab {
 
     /** 현재 차량의 블루투스 등록 여부. 감지가 되는지를 여기서 바로 읽을 수 있게. */
     private String vehicleSubtitle() {
-        String name = Store.activeVehicleName(host);
-        String bt = Store.vehicleBtName(host, Store.activeVehicleId(host));
-        return bt == null || bt.trim().isEmpty()
-                ? host.getString(R.string.vehicle_manual_suffix, name)
-                : host.getString(R.string.vehicle_bt_suffix, name, bt);
+        return RecordEditor.vehicleLabel(host, Store.activeVehicle(host));
     }
 
     private View entry(String title, String subtitle, View.OnClickListener onTap) {

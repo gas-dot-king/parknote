@@ -80,7 +80,9 @@ class ZoneGrid {
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT));
         }
-        int fixedCellWidth = scrollable ? dp(ctx, cellWidthDp(cols.length, true, false)) : 0;
+        // 가로 스크롤 격자의 칸 폭. 높이와 같은 48dp 하한 — 열 수가 늘었다고 폭을 줄이면
+        // 높이만 48dp인 가늘고 잘못 누르기 쉬운 칸이 된다.
+        int fixedCellWidth = scrollable ? dp(ctx, MIN_TOUCH_DP) : 0;
 
         // 격자에서는 왼쪽 층 라벨이 행을 알려 주므로 칸에는 구역 이름만 쓴다.
         // "B1-A"를 칸마다 반복하면 구역이 6~8개일 때 폭이 모자라 잘려 버린다.
@@ -220,15 +222,6 @@ class ZoneGrid {
         if (!grid) return 58;
         if (cols <= 3) return 56;
         return cols <= 5 ? 52 : MIN_TOUCH_DP;
-    }
-
-    /**
-     * 가로 스크롤 격자에서 적용할 칸 폭 하한(dp). compact는 고정 폭을 적용하지 않지만,
-     * 미리보기 회귀를 함께 검증할 수 있도록 압축 기준값을 돌려준다.
-     */
-    static int cellWidthDp(int cols, boolean grid, boolean compact) {
-        if (compact) return cols <= 5 ? 32 : 24;
-        return grid ? MIN_TOUCH_DP : 96;
     }
 
     private static int cellTextSize(int cols, boolean grid, boolean compact) {

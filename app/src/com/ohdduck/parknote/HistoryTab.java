@@ -151,7 +151,7 @@ class HistoryTab {
         String memo = Store.recordMemo(record);
         if (!memo.isEmpty()) meta.append(" · ").append(memo);
         holder.sub.setText(meta);
-        holder.time.setText(Store.formatFull(record.optLong("t", 0)));
+        holder.time.setText(Fmt.full(record.optLong("t", 0)));
         holder.root.setContentDescription(host.getString(R.string.cd_edit_history, zone));
     }
 

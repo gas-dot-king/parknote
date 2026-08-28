@@ -60,6 +60,8 @@ public class OnboardingActivity extends Activity {
     private int zoneCount = 2;
     private String vehicleName;
     private String btName = "";
+    /** 목록에서 고른 기기의 주소. 직접 입력했으면 비어 있다. */
+    private String btAddress = "";
     /** 블루투스를 비운 채 넘어가겠다고 이미 확인했으면 다시 묻지 않는다. */
     private boolean btSkipConfirmed;
 
@@ -83,6 +85,7 @@ public class OnboardingActivity extends Activity {
             zoneCount = savedInstanceState.getInt("zoneCount", zoneCount);
             vehicleName = savedInstanceState.getString("vehicleName", vehicleName);
             btName = savedInstanceState.getString("btName", btName);
+            btAddress = savedInstanceState.getString("btAddress", btAddress);
             btSkipConfirmed = savedInstanceState.getBoolean("btSkipConfirmed", false);
         }
 
@@ -148,6 +151,7 @@ public class OnboardingActivity extends Activity {
         out.putInt("zoneCount", zoneCount);
         out.putString("vehicleName", vehicleName);
         out.putString("btName", btName);
+        out.putString("btAddress", btAddress);
         out.putBoolean("btSkipConfirmed", btSkipConfirmed);
     }
 
@@ -552,7 +556,7 @@ public class OnboardingActivity extends Activity {
 
     private void saveAndOpenMain() {
         Store.completeOnboarding(this, profileName, gridRows(), gridCols(),
-                Store.DEFAULT_SEP, vehicleName, btName);
+                Store.DEFAULT_SEP, vehicleName, btName, btAddress);
         openMain();
     }
 
@@ -578,11 +582,12 @@ public class OnboardingActivity extends Activity {
     }
 
     private void showBondedDevices() {
-        BtPicker.show(this, btName, this::setBtName);
+        BtPicker.show(this, btName, this::setBt);
     }
 
-    private void setBtName(String name) {
+    private void setBt(String name, String address) {
         btName = name == null ? "" : name.trim();
+        btAddress = address == null ? "" : address.trim();
         if (!btName.isEmpty()) btSkipConfirmed = false;
         // 색까지 함께 바뀌어야 해서 (비었으면 경고색) 이 단계를 다시 그린다.
         if (step == STEP_VEHICLE) render();

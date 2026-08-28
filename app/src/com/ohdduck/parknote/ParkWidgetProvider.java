@@ -28,11 +28,11 @@ public class ParkWidgetProvider extends AppWidgetProvider {
     /** 알림을 띄운 사건(블루투스 끊김)의 시각. 기록의 주차 시각이 된다. */
     private static final String EXTRA_EVENT_TIME = "event_time";
 
-    // 위젯은 고정 크기라 설정된 자주 쓰는 구역 중 앞 6개를 표시한다.
+    // 위젯은 고정 크기라 여섯 칸이다. 어떤 구역을 담을지는 Store.widgetZones가 정한다.
     private static final int[] BTN_IDS = {
-            R.id.btnB1A, R.id.btnB1B,
-            R.id.btnB2A, R.id.btnB2B,
-            R.id.btnB3A, R.id.btnB3B};
+            R.id.btnZone1, R.id.btnZone2,
+            R.id.btnZone3, R.id.btnZone4,
+            R.id.btnZone5, R.id.btnZone6};
     private static final int[] ROW_IDS = {
             R.id.widgetRow1, R.id.widgetRow2, R.id.widgetRow3};
 
@@ -62,38 +62,30 @@ public class ParkWidgetProvider extends AppWidgetProvider {
     }
 
     /**
-     * Adds an event-time location to an action Intent, including an explicit no-fix marker.
+     * 사건 시점의 좌표를 액션 인텐트에 싣는다. 좌표가 없었다는 사실도 명시적으로 싣는다.
      *
      * @param eventTime 사건 시각(ms). 좌표가 없어도 항상 싣는다 — 주차 시각은 좌표와 무관하다.
      */
     static void putLocationSnapshot(Intent intent, Location fix, long eventTime) {
         intent.putExtra(EXTRA_LOCATION_SNAPSHOT, true);
         intent.putExtra(EXTRA_EVENT_TIME, Math.max(0L, eventTime));
-        boolean valid = fix != null
-                && Store.validCoordinates(fix.getLatitude(), fix.getLongitude());
+        boolean valid = Nearby.isValid(fix);
         intent.putExtra(EXTRA_LOCATION_PRESENT, valid);
         if (!valid) return;
 
         intent.putExtra(EXTRA_LOCATION_LAT, fix.getLatitude());
         intent.putExtra(EXTRA_LOCATION_LON, fix.getLongitude());
         intent.putExtra(EXTRA_LOCATION_TIME, Math.max(0L, fix.getTime()));
-        float savedAccuracy = -1f;
-        if (fix.hasAccuracy()) {
-            float accuracy = fix.getAccuracy();
-            if (!Float.isNaN(accuracy) && !Float.isInfinite(accuracy) && accuracy >= 0) {
-                savedAccuracy = accuracy;
-            }
-        }
-        // Always overwrite optional values as well. A FLAG_UPDATE_CURRENT PendingIntent may
-        // otherwise retain metadata from an older disconnect action with the same identity.
-        intent.putExtra(EXTRA_LOCATION_ACCURACY, savedAccuracy);
+        // 선택 값도 항상 덮어쓴다. FLAG_UPDATE_CURRENT PendingIntent는 같은 identity의
+        // 이전 끊김 액션에 실렸던 메타데이터를 그대로 남길 수 있다.
+        intent.putExtra(EXTRA_LOCATION_ACCURACY, Nearby.accuracyOf(fix));
     }
 
     private static Location locationSnapshot(Intent intent) {
         if (!intent.getBooleanExtra(EXTRA_LOCATION_PRESENT, false)) return null;
         double lat = intent.getDoubleExtra(EXTRA_LOCATION_LAT, Double.NaN);
         double lon = intent.getDoubleExtra(EXTRA_LOCATION_LON, Double.NaN);
-        if (!Store.validCoordinates(lat, lon)) return null;
+        if (!Nearby.validCoordinates(lat, lon)) return null;
 
         Location fix = new Location("bt-disconnect");
         fix.setLatitude(lat);
@@ -130,7 +122,7 @@ public class ParkWidgetProvider extends AppWidgetProvider {
                 ? ctx.getString(R.string.widget_status_empty, brand,
                         Store.activeProfileName(ctx), Store.activeVehicleName(ctx))
                 : ctx.getString(R.string.widget_status, brand, latest,
-                        Store.formatShort(Store.latestTime(ctx)),
+                        Fmt.time(Store.latestTime(ctx)),
                         Store.activeProfileName(ctx), Store.activeVehicleName(ctx)));
 
         // 격자가 크면 앞 6칸이 전부 첫 번째 층이라, 늘 B2에 대는 사람은 위젯에서

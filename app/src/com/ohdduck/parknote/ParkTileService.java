@@ -24,7 +24,7 @@ public class ParkTileService extends TileService {
                     getString(R.string.app_name),
                     Store.activeProfileName(this),
                     Store.activeVehicleName(this),
-                    Store.formatShort(Store.latestTime(this))));
+                    Fmt.time(Store.latestTime(this))));
         }
         t.updateTile();
     }

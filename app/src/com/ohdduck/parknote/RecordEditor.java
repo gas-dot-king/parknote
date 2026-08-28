@@ -145,7 +145,7 @@ class RecordEditor {
         zone.setText(zoneText);
         Ui.addField(form, a.getString(R.string.record_label_zone), zone, 12);
 
-        Button timeButton = Ui.pickerButton(a, Store.formatFull(parkedAt[0]));
+        Button timeButton = Ui.pickerButton(a, Fmt.full(parkedAt[0]));
         Ui.addField(form, a.getString(R.string.record_label_time), timeButton, 12);
 
         EditText memo = Ui.multilineInput(a, a.getString(R.string.record_memo_hint), 2, 4);
@@ -165,7 +165,7 @@ class RecordEditor {
         }));
         timeButton.setOnClickListener(v -> pickDateTime(a, parkedAt[0], value -> {
             parkedAt[0] = value;
-            timeButton.setText(Store.formatFull(value));
+            timeButton.setText(Fmt.full(value));
         }));
         timerButton.setOnClickListener(v -> pickTimer(a, due[0], value -> {
             due[0] = value;
@@ -205,7 +205,7 @@ class RecordEditor {
             Toast.makeText(a, R.string.record_save_error, Toast.LENGTH_SHORT).show();
             return false;
         }
-        host.refresh(true);
+        host.refresh(false); // 기록만 바뀌었다. 격자는 그대로다.
         Toast.makeText(a, R.string.record_updated, Toast.LENGTH_SHORT).show();
         return true;
     }
@@ -276,12 +276,12 @@ class RecordEditor {
                 });
     }
 
-    /** 차량 이름 + 블루투스 연결 여부. 목록마다 같은 형식으로 보여 준다. */
+    /** 차량 이름 + 블루투스 등록 여부. 목록·설정 부제가 같은 형식으로 보여 준다. */
     static String vehicleLabel(Context c, JSONObject vehicle) {
         String fallback = c.getString(R.string.vehicle_default_name);
         if (vehicle == null) return fallback;
         String name = vehicle.optString("n", fallback);
-        String bt = vehicle.optString("b", "");
+        String bt = Store.vehicleBtName(vehicle);
         return bt.isEmpty()
                 ? c.getString(R.string.vehicle_manual_suffix, name)
                 : c.getString(R.string.vehicle_bt_suffix, name, bt);
@@ -379,7 +379,7 @@ class RecordEditor {
 
     private static String timerButtonText(Context c, long due) {
         return due > System.currentTimeMillis()
-                ? c.getString(R.string.timer_set, Store.formatFull(due))
+                ? c.getString(R.string.timer_set, Fmt.full(due))
                 : c.getString(R.string.timer_unset);
     }
 }

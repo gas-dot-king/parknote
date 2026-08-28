@@ -13,6 +13,8 @@ import android.os.PowerManager;
 import android.provider.Settings;
 import android.widget.Toast;
 
+import org.json.JSONObject;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -98,15 +100,16 @@ class ReadyCheck {
         if (manager == null || !manager.areNotificationsEnabled()) return false;
 
         // 앱 전체 알림은 켜고 위치 기록 채널만 끈 경우에도 실제 알림은 나오지 않는다.
-        if (!channelEnabled(manager, Store.CHANNEL)) return false;
+        Notify.ensureChannels(c);
+        if (!channelEnabled(manager, Notify.CHANNEL_PARK)) return false;
         // 위치 조절을 켜면 등록 주차장 밖의 알림은 별도 무음 채널을 쓴다. 그 채널을
         // 사용자가 껐다면 알림함에도 남지 않으므로 준비 완료로 표시하면 안 된다.
-        return !Store.locationFilterOn(c) || channelEnabled(manager, Store.CHANNEL_QUIET);
+        return !Store.locationFilterOn(c) || channelEnabled(manager, Notify.CHANNEL_PARK_QUIET);
     }
 
     private static boolean channelEnabled(NotificationManager manager, String channelId) {
         NotificationChannel channel = manager.getNotificationChannel(channelId);
-        return channel == null || channel.getImportance() != NotificationManager.IMPORTANCE_NONE;
+        return channel != null && channel.getImportance() != NotificationManager.IMPORTANCE_NONE;
     }
 
     private static Item notifications(Context c) {
@@ -119,20 +122,22 @@ class ReadyCheck {
     }
 
     private static Item bluetooth(Context c) {
-        // 이름이 비어 있으면 자동 알림은 절대 오지 않는다. Store.vehicleMatchingBluetooth가
-        // 빈 이름에 null을 돌려주고 BtReceiver가 거기서 빠져나가기 때문이다.
+        // 기기가 등록돼 있지 않으면 자동 알림은 절대 오지 않는다. Store.vehicleMatchingBluetooth가
+        // null을 돌려주고 BtReceiver가 거기서 빠져나가기 때문이다.
         // "수동 기록 전용"이라는 정당한 선택이긴 하지만, 자동 알림을 기대하는 사람에게는
         // 이게 유일한 실패 원인이므로 조용한 NOT_USED가 아니라 경고로 올린다.
-        String btName = Store.vehicleBtName(c, Store.activeVehicleId(c));
-        String vehicle = Store.activeVehicleName(c);
-        if (btName == null || btName.trim().isEmpty()) {
+        JSONObject active = Store.activeVehicle(c);
+        String btName = Store.vehicleBtName(active);
+        if (btName.isEmpty()) {
             return new Item(R.string.ready_bluetooth, State.ACTION_NEEDED,
-                    c.getString(R.string.ready_bt_manual, vehicle), Action.BLUETOOTH);
+                    c.getString(R.string.ready_bt_manual, Store.activeVehicleName(c)),
+                    Action.BLUETOOTH);
         }
-        boolean canRead = hasBluetoothPermission(c);
+        // 주소를 저장해 둔 차량은 권한 없이도 맞춰진다. 이름만 있으면 이름을 읽을 권한이 필요하다.
+        boolean canMatch = hasBluetoothPermission(c) || !Store.vehicleBtAddress(active).isEmpty();
         return new Item(R.string.ready_bluetooth,
-                canRead ? State.OK : State.ACTION_NEEDED,
-                canRead ? btName : c.getString(R.string.ready_bt_no_permission),
+                canMatch ? State.OK : State.ACTION_NEEDED,
+                canMatch ? btName : c.getString(R.string.ready_bt_no_permission),
                 Action.BLUETOOTH);
     }
 

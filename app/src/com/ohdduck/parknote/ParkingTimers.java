@@ -1,7 +1,6 @@
 package com.ohdduck.parknote;
 
 import android.app.AlarmManager;
-import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
@@ -51,9 +50,7 @@ class ParkingTimers {
             if (am != null) am.cancel(pi);
             pi.cancel();
         }
-        NotificationManager nm =
-                (NotificationManager) c.getSystemService(Context.NOTIFICATION_SERVICE);
-        if (nm != null) nm.cancel("timer:" + recordId, Store.NOTIF_ID_TIMER);
+        Notify.cancelTimer(c, recordId);
     }
 
     private static PendingIntent pending(Context c, String recordId, long due, int flags) {

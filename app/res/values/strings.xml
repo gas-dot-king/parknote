@@ -296,12 +296,6 @@
     <!-- ── 위젯 ───────────────────────────────────────────────────────────── -->
     <string name="widget_status_empty">%1$s · 아직 없어요 · %2$s · %3$s</string>
     <string name="widget_status">%1$s · %2$s · %3$s · %4$s · %5$s</string>
-    <string name="widget_zone_b1a">B1-A</string>
-    <string name="widget_zone_b1b">B1-B</string>
-    <string name="widget_zone_b2a">B2-A</string>
-    <string name="widget_zone_b2b">B2-B</string>
-    <string name="widget_zone_b3a">B3-A</string>
-    <string name="widget_zone_b3b">B3-B</string>
 
     <!-- ── 퀵설정 타일 ────────────────────────────────────────────────────── -->
     <string name="tile_subtitle">%1$s · %2$s · %3$s · %4$s</string>
@@ -356,6 +350,8 @@
 
     <!-- ==================== 홈: 히어로 · 감지 상태 ==================== -->
     <string name="hero_saved_label">주차 완료</string>
+    <!-- 차량 블루투스가 다시 붙었다 = 시동이 켜졌다. 차는 더 이상 그 자리에 없다. -->
+    <string name="hero_moving_label">시동 켜짐 · 마지막 주차</string>
     <string name="hero_empty_label">아직 기록이 없어요</string>
     <string name="history_see_all">전체 보기</string>
 
@@ -391,7 +387,6 @@
     <string name="location_copy">복사</string>
     <string name="location_copied">좌표를 복사했어요</string>
     <string name="location_open_map">지도 앱으로 열기</string>
-    <string name="location_refresh">현재 위치 다시 잡기</string>
     <string name="location_no_map_app">지도 앱을 찾을 수 없어요</string>
     <string name="cd_car_direction">차가 있는 방향</string>
 
@@ -402,7 +397,6 @@
     <string name="location_here">거의 다 왔어요</string>
     <string name="location_accuracy_warning">저장된 위치 또는 현재 위치의 정확도가 낮아 방향을 표시하지 않아요.</string>
     <string name="location_waiting">내 위치를 잡는 중…</string>
-    <string name="location_fix_failed">현재 위치를 잡지 못했어요. 지상으로 올라와 다시 시도해 주세요</string>
 
     <string name="location_empty_no_record">아직 저장된 주차 기록이 없어요.\n홈에서 구역을 누르면 그 순간의 위치도 함께 저장됩니다.</string>
     <string name="location_empty_no_coords">이 기록에는 위치가 없어요.\n위치 권한을 켠 뒤 저장한 기록부터 여기에 표시됩니다.</string>

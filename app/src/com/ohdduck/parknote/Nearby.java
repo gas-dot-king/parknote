@@ -19,13 +19,15 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * "차에서 내린 이 자리가 어느 주차장인가"만 판정한다. 위치와 관련된 코드는 전부 여기 있다.
+ * 위치와 관련된 코드는 전부 여기 있다. 권한, 마지막 좌표, 단발·연속 측위, 거리 계산,
+ * 그리고 "차에서 내린 이 자리가 어느 주차장인가" 판정.
  *
  * <p>설계 두 가지가 핵심이다.
  * <ul>
- *   <li><b>새 측위를 요청하지 않는다.</b> 마지막으로 잡힌 좌표만 읽는다. 집 주차장은 지하라
- *       그 자리에서는 어차피 위성이 안 잡히고, 지하로 내려가기 직전 지상에서 잡힌 좌표면
- *       충분하다. 덕분에 배터리 소모가 사실상 없다.</li>
+ *   <li><b>백그라운드에서는 새 측위를 요청하지 않는다.</b> 마지막으로 잡힌 좌표만 읽는다.
+ *       집 주차장은 지하라 그 자리에서는 어차피 위성이 안 잡히고, 지하로 내려가기 직전
+ *       지상에서 잡힌 좌표면 충분하다. 덕분에 배터리 소모가 사실상 없다. 화면이 보이는
+ *       동안의 측위({@link #requestUpdates})는 화면과 함께 반드시 꺼진다.</li>
  *   <li><b>모르면 알린다.</b> 좌표가 없거나 낡았으면 판정을 포기하고 평소대로 알림을 띄운다.
  *       엉뚱한 곳에서 알림이 한 번 더 뜨는 건 손해가 없지만, 집에서 알림이 안 뜨면
  *       그날 주차 위치를 통째로 놓친다.</li>
@@ -36,7 +38,7 @@ class Nearby {
     /** 이보다 오래된 좌표는 없는 것으로 친다. 어제 회사 좌표로 오늘 집을 판정하면 안 된다. */
     private static final long MAX_FIX_AGE_MS = 30 * 60 * 1000L;
 
-    /** 공급자 콜백 시각의 작은 오차는 허용하되 오래된 초기값은 fresh 결과로 받지 않는다. */
+    /** 공급자 콜백 시각의 작은 오차는 허용하되 오래된 초기값은 새 좌표로 받지 않는다. */
     private static final long FRESH_FIX_TOLERANCE_NS = 5_000_000_000L;
 
     /** 판정 결과. profile이 null이면 "아는 주차장이 아니다", unknown이면 "알 수 없다". */
@@ -74,6 +76,8 @@ class Nearby {
         return profile == null ? ELSEWHERE : new Where(profile, false);
     }
 
+    // ---------- 권한 ----------
+
     /**
      * 위치 권한을 요청할 때 반드시 함께 넣어야 하는 조합.
      *
@@ -85,14 +89,14 @@ class Nearby {
             Manifest.permission.ACCESS_COARSE_LOCATION};
 
     /**
-     * FINE이든 COARSE든 하나라도 허용됐는가.
+     * FINE이든 COARSE든 하나라도 허용됐는가. 앱 화면에서 좌표를 읽을 때는 이것만 있으면 된다.
      *
      * <p>판정 반경이 {@value Store#DEFAULT_RADIUS_M}m라 COARSE(대략 100~2000m 오차)로도
      * 충분히 쓸 만하다. Android 12의 권한 다이얼로그에서 사용자가 "대략적인 위치"를
      * 고르면 FINE은 거부로 떨어지는데, 그걸 실패로 처리하면 멀쩡히 쓸 수 있는 기능이
      * 이유 없이 막힌다.
      */
-    static boolean hasAnyLocationPermission(Context c) {
+    static boolean hasForegroundPermission(Context c) {
         return c.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)
                         == PackageManager.PERMISSION_GRANTED
                 || c.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION)
@@ -110,15 +114,10 @@ class Nearby {
      * 블루투스 끊김은 브로드캐스트 수신이라 앱이 백그라운드 상태로 취급된다.
      */
     static boolean hasPermission(Context c) {
-        if (!hasAnyLocationPermission(c)) return false;
+        if (!hasForegroundPermission(c)) return false;
         return Build.VERSION.SDK_INT < 29
                 || c.checkSelfPermission(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
                         == PackageManager.PERMISSION_GRANTED;
-    }
-
-    /** 앱 화면에서 좌표를 저장할 때는 "앱 사용 중" 권한만 있으면 된다. */
-    static boolean hasForegroundPermission(Context c) {
-        return hasAnyLocationPermission(c);
     }
 
     /**
@@ -138,6 +137,8 @@ class Nearby {
         }
         return false;
     }
+
+    // ---------- 마지막 좌표 ----------
 
     /**
      * 각 공급자가 캐시해 둔 마지막 좌표 중 가장 최신인 것. 새 측위는 요청하지 않는다.
@@ -166,69 +167,75 @@ class Nearby {
                 // 이 공급자만 건너뛴다
             }
         }
-        if (best == null) return null;
-        long age = System.currentTimeMillis() - best.getTime();
-        return age >= 0 && age <= MAX_FIX_AGE_MS ? best : null;
+        return best != null && isFresh(best) ? best : null;
     }
+
+    /**
+     * 30분 안에 잡힌 좌표인가.
+     *
+     * <p>벽시계와 부팅 후 경과 시간을 <b>둘 다</b> 본다. 벽시계만 보면 시각 자동 보정이나
+     * 시간대 이동에 흔들리고, 경과 시간만 보면 재부팅 뒤 공급자가 되살린 이전 부팅의
+     * 좌표가 방금 잡힌 것처럼 보인다. 둘 다 30분 안이어야 신선한 것으로 친다.
+     */
+    private static boolean isFresh(Location fix) {
+        long wall = System.currentTimeMillis() - fix.getTime();
+        long elapsed = (SystemClock.elapsedRealtimeNanos() - fix.getElapsedRealtimeNanos())
+                / 1_000_000L;
+        return wall >= 0 && wall <= MAX_FIX_AGE_MS && elapsed >= 0 && elapsed <= MAX_FIX_AGE_MS;
+    }
+
+    // ---------- 측위 ----------
 
     interface FixCallback {
         /** 실패하면 fix가 null. */
         void onFix(Location fix);
     }
 
-    /** 진행 중인 단발 위치 요청. 탭이나 화면이 사라지면 반드시 취소한다. */
+    /** 진행 중인 위치 요청. 탭이나 화면이 사라지면 반드시 취소한다. */
     interface FixRequest {
         void cancel();
     }
 
-    private static final FixRequest COMPLETED_REQUEST = () -> { };
+    private static final FixRequest DONE = () -> { };
 
     /**
-     * 주차장 좌표를 등록할 때 쓴다. 캐시된 좌표가 쓸 만하면 그대로 주고,
-     * 없으면 앱이 떠 있는 동안 한 번만 새로 잡는다. 15초 안에 못 잡으면 포기한다.
+     * 단발 측위. {@code timeoutMs} 안에 새 좌표를 못 잡으면 null을 돌려준다.
+     * 캐시된 좌표는 돌려주지 않는다 — 그건 호출한 쪽이 {@link #lastFix}로 먼저 본다.
      */
-    static FixRequest requestFix(Context c, FixCallback cb) {
-        return requestFix(c, cb, true);
+    static FixRequest requestFix(Context c, long timeoutMs, FixCallback cb) {
+        return start(c, cb, true, timeoutMs);
     }
 
     /**
-     * 캐시를 반환하지 않고 공급자에 실제 단발 측위를 요청한다.
-     * "현재 위치 다시 잡기"처럼 사용자가 명시적으로 갱신을 요구한 경로에서만 쓴다.
+     * 연속 측위. 화면이 보이는 동안만 걸고 {@link FixRequest#cancel}로 반드시 푼다.
+     * 공급자가 캐시를 먼저 돌려주면 그것도 그대로 전달한다 — 화면에 뭐라도 바로 보이는 편이 낫다.
      */
-    static FixRequest requestFreshFix(Context c, FixCallback cb) {
-        return requestFix(c, cb, false);
+    static FixRequest requestUpdates(Context c, long intervalMs, FixCallback cb) {
+        return start(c, cb, false, intervalMs);
     }
 
-    private static FixRequest requestFix(Context c, FixCallback cb, boolean allowCached) {
-        if (allowCached) {
-            Location cached = lastFix(c);
-            if (cached != null) {
-                cb.onFix(cached);
-                return COMPLETED_REQUEST;
-            }
-        }
+    private static FixRequest start(Context c, FixCallback cb, boolean oneShot, long millis) {
         LocationManager lm = (LocationManager) c.getSystemService(Context.LOCATION_SERVICE);
         if (lm == null || !hasForegroundPermission(c)) {
             cb.onFix(null);
-            return COMPLETED_REQUEST;
+            return DONE;
         }
         List<String> providers = providersFor(c, lm);
         if (providers.isEmpty()) {
             cb.onFix(null);
-            return COMPLETED_REQUEST;
+            return DONE;
         }
-
-        OneShotRequest request = new OneShotRequest(lm, providers, cb, !allowCached);
+        Request request = new Request(lm, providers, cb, oneShot, millis);
         request.start();
         return request;
     }
 
     /**
-     * 단발 측위에 걸 공급자.
+     * 측위에 걸 공급자.
      *
      * <p>Android 12+는 융합 공급자 하나면 된다 — GPS와 네트워크를 시스템이 합쳐 준다.
      * 그 아래에서는 GPS와 NETWORK를 <b>함께</b> 건다. 예전처럼 GPS 하나만 걸면 실내에서
-     * 네트워크가 잡아 줄 수 있는데도 15초 타임아웃으로 끝났다. 먼저 오는 유효한 좌표가
+     * 네트워크가 잡아 줄 수 있는데도 타임아웃으로 끝났다. 먼저 오는 유효한 좌표가
      * 이기고, 나머지는 removeUpdates 한 번으로 같이 풀린다.
      *
      * <p>COARSE만 허용됐으면 GPS를 요청할 수 없다. 그대로 요청하면 SecurityException이
@@ -253,22 +260,25 @@ class Nearby {
      * LocationManager 콜백과 타임아웃을 한 객체가 소유하게 해 취소 경로를 빠뜨리지 않는다.
      * 완료/취소 경쟁은 AtomicBoolean으로 한 번만 이기게 한다.
      */
-    private static final class OneShotRequest implements FixRequest, LocationListener {
+    private static final class Request implements FixRequest, LocationListener {
         private final LocationManager manager;
         private final List<String> providers;
         private final FixCallback callback;
-        private final boolean requireFresh;
+        private final boolean oneShot;
+        /** 단발이면 타임아웃(ms), 연속이면 갱신 간격(ms). */
+        private final long millis;
         private final long requestedAtElapsedNanos;
         private final Handler main = new Handler(Looper.getMainLooper());
         private final AtomicBoolean finished = new AtomicBoolean();
         private final Runnable timeout = () -> finish(null, true);
 
-        private OneShotRequest(LocationManager manager, List<String> providers,
-                               FixCallback callback, boolean requireFresh) {
+        private Request(LocationManager manager, List<String> providers,
+                        FixCallback callback, boolean oneShot, long millis) {
             this.manager = manager;
             this.providers = providers;
             this.callback = callback;
-            this.requireFresh = requireFresh;
+            this.oneShot = oneShot;
+            this.millis = millis;
             this.requestedAtElapsedNanos = SystemClock.elapsedRealtimeNanos();
         }
 
@@ -277,7 +287,7 @@ class Nearby {
             for (String provider : providers) {
                 try {
                     manager.requestLocationUpdates(
-                            provider, 0L, 0f, this, Looper.getMainLooper());
+                            provider, oneShot ? 0L : millis, 0f, this, Looper.getMainLooper());
                     listening = true;
                 } catch (SecurityException | IllegalArgumentException ignored) {
                     // 이 공급자만 건너뛴다. 하나라도 걸렸으면 계속 기다린다.
@@ -287,7 +297,7 @@ class Nearby {
                 finish(null, true);
                 return;
             }
-            if (!finished.get()) main.postDelayed(timeout, 15000L);
+            if (oneShot && !finished.get()) main.postDelayed(timeout, millis);
         }
 
         @Override
@@ -300,7 +310,12 @@ class Nearby {
             // 일부 공급자는 잘못된 좌표를 먼저 내보내기도 한다. 그런 값은 타임아웃까지
             // 기다리되 UI나 저장 경로로 전달하지 않는다.
             if (!isValid(location)) return;
-            if (requireFresh && location.getElapsedRealtimeNanos()
+            if (!oneShot) {
+                callback.onFix(location);
+                return;
+            }
+            // 등록 직후 공급자가 이전 좌표를 되풀이해 주는 경우가 있다. 새로 잡힌 것만 받는다.
+            if (location.getElapsedRealtimeNanos()
                     < requestedAtElapsedNanos - FRESH_FIX_TOLERANCE_NS) return;
             finish(location, true);
         }
@@ -314,10 +329,25 @@ class Nearby {
         private void finish(Location fix, boolean deliver) {
             if (!finished.compareAndSet(false, true)) return;
             main.removeCallbacks(timeout);
-            stop(manager, this);
+            try {
+                manager.removeUpdates(this);
+            } catch (SecurityException ignored) {
+                // 권한이 도중에 회수된 경우
+            }
             if (deliver) callback.onFix(fix);
         }
     }
+
+    /** 공급자 조회는 기기에 따라 IllegalArgumentException을 던진다. */
+    private static boolean isEnabled(LocationManager lm, String provider) {
+        try {
+            return lm.isProviderEnabled(provider);
+        } catch (SecurityException | IllegalArgumentException ignored) {
+            return false;
+        }
+    }
+
+    // ---------- 좌표 ----------
 
     /** Location 객체가 실제 지구 좌표를 담고 있는지 확인한다. */
     static boolean isValid(Location location) {
@@ -333,21 +363,22 @@ class Nearby {
                 && longitude >= -180.0 && longitude <= 180.0;
     }
 
-    /** 공급자 조회는 기기에 따라 IllegalArgumentException을 던진다. */
-    private static boolean isEnabled(LocationManager lm, String provider) {
-        try {
-            return lm.isProviderEnabled(provider);
-        } catch (SecurityException | IllegalArgumentException ignored) {
-            return false;
-        }
+    /** 오차 반경(m). 공급자가 알려 주지 않았거나 값이 이상하면 -1. */
+    static float accuracyOf(Location fix) {
+        if (fix == null || !fix.hasAccuracy()) return -1f;
+        float accuracy = fix.getAccuracy();
+        return Float.isNaN(accuracy) || Float.isInfinite(accuracy) || accuracy < 0
+                ? -1f : accuracy;
     }
 
-    private static void stop(LocationManager lm, LocationListener listener) {
-        try {
-            lm.removeUpdates(listener);
-        } catch (SecurityException ignored) {
-            // 권한이 도중에 회수된 경우
-        }
+    /** 하버사인 거리(m). 수 km 범위에서 반경 판정에 충분하다. */
+    static double metersBetween(double lat1, double lon1, double lat2, double lon2) {
+        double dLat = Math.toRadians(lat2 - lat1);
+        double dLon = Math.toRadians(lon2 - lon1);
+        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
+                + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
+                * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        return 6371000.0 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     }
 
     /** 좌표를 저장할 때 쓸 설명 문구. */

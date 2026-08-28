@@ -71,11 +71,12 @@ class VehicleDialogs {
         Ui.addField(form, a.getString(R.string.vehicle_name_label), name, 16);
 
         // 이름을 손으로 적으면 한 글자만 달라도 자동 알림이 조용히 안 뜬다 → 목록에서 고르게 한다.
-        final String[] btName = {adding ? "" : existing.optString("b", "")};
-        Button btButton = Ui.pickerButton(a, btLabel(a, btName[0]));
-        btButton.setOnClickListener(v -> BtPicker.show(a, btName[0], picked -> {
-            btName[0] = picked;
-            btButton.setText(btLabel(a, picked));
+        final String[] bt = {Store.vehicleBtName(existing), Store.vehicleBtAddress(existing)};
+        Button btButton = Ui.pickerButton(a, btLabel(a, bt[0]));
+        btButton.setOnClickListener(v -> BtPicker.show(a, bt[0], (pickedName, pickedAddress) -> {
+            bt[0] = pickedName;
+            bt[1] = pickedAddress;
+            btButton.setText(btLabel(a, pickedName));
         }));
         Ui.addField(form, a.getString(R.string.vehicle_bt_label), btButton, 12);
 
@@ -89,10 +90,10 @@ class VehicleDialogs {
                 () -> {
                     try {
                         if (adding) {
-                            Store.addVehicle(a, name.getText().toString(), btName[0]);
+                            Store.addVehicle(a, name.getText().toString(), bt[0], bt[1]);
                         } else {
                             Store.updateVehicle(a, existing.optString("id"),
-                                    name.getText().toString(), btName[0]);
+                                    name.getText().toString(), bt[0], bt[1]);
                         }
                     } catch (IllegalArgumentException e) {
                         name.setError(e.getMessage());

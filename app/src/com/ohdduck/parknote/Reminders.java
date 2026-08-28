@@ -20,7 +20,7 @@ class Reminders {
 
     /** 리마인더가 설정된 모든 습관의 알람을 다시 예약 (부팅 후, 앱 시작 시, 설정 변경 시) */
     static void scheduleAll(Context c) {
-        JSONArray hs = Store.habits(c);
+        JSONArray hs = Habits.all(c);
         for (int i = 0; i < hs.length(); i++) {
             JSONObject h = hs.optJSONObject(i);
             if (h == null) continue;
