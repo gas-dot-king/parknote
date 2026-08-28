@@ -30,18 +30,26 @@
         android:name="android.hardware.bluetooth"
         android:required="false" />
 
+    <!-- allowBackup은 true로 둔다. false면 클라우드 백업뿐 아니라 기기 이전(D2D)까지
+         제조사에 따라 함께 꺼져서 data_extraction_rules의 device-transfer 선언이 죽는다.
+         클라우드로 아무것도 보내지 않는 건 두 규칙 파일이 맡는다:
+         backup_rules(≤11)는 전부 제외, data_extraction_rules(12+)는 cloud-backup 제외. -->
     <application
         android:label="@string/app_name"
         android:icon="@mipmap/ic_launcher"
         android:theme="@style/AppTheme"
         android:supportsRtl="false"
-        android:allowBackup="false"
+        android:allowBackup="true"
         android:fullBackupContent="@xml/backup_rules"
         android:dataExtractionRules="@xml/data_extraction_rules">
 
+        <!-- singleTask: 알림·위젯·타일이 앱을 열 때 이미 떠 있는 인스턴스로 onNewIntent가
+             들어온다. 기본(standard)이면 PendingIntent마다 MainActivity가 하나씩 더 쌓여서
+             뒤로 가기가 이전 인스턴스로 떨어지고, onNewIntent는 영영 호출되지 않는다. -->
         <activity
             android:name=".MainActivity"
-            android:exported="true">
+            android:exported="true"
+            android:launchMode="singleTask">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

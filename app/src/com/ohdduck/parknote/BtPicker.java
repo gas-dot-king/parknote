@@ -92,25 +92,24 @@ class BtPicker {
     }
 
     private static void manual(Activity a, String current, OnPicked onPicked) {
-        EditText input = new EditText(a);
-        input.setText(current == null ? "" : current);
-        input.setHint(R.string.bt_manual_hint);
-        input.setSingleLine(true);
+        // 앱의 다른 폼과 같은 입력 필드(Ui.input). 기기 이름은 문장이 아니므로
+        // 첫 글자 대문자화는 끈다 — "CAR-AUDIO"를 그대로 받아 적어야 한다.
+        EditText input = Ui.input(a, a.getString(R.string.bt_manual_hint));
         input.setInputType(InputType.TYPE_CLASS_TEXT);
+        input.setText(current == null ? "" : current);
         input.setSelection(input.getText().length());
 
-        int pad = Math.round(20 * a.getResources().getDisplayMetrics().density);
-        LinearLayout wrap = new LinearLayout(a);
-        wrap.setPadding(pad, pad / 2, pad, 0);
+        LinearLayout wrap = Ui.form(a);
         wrap.addView(input);
 
-        new AlertDialog.Builder(a)
+        AlertDialog dialog = new AlertDialog.Builder(a)
                 .setTitle(R.string.bt_manual_title)
                 .setMessage(R.string.bt_manual_message)
                 .setView(wrap)
                 .setPositiveButton(R.string.action_save,
                         (d, w) -> onPicked.onPicked(input.getText().toString().trim()))
                 .setNegativeButton(R.string.action_cancel, null)
-                .show();
+                .create();
+        Ui.showWithKeyboard(dialog, input);
     }
 }

@@ -84,15 +84,6 @@ class ReadyCheck {
         return items;
     }
 
-    /** 손봐야 할 항목 수. 0이면 카드 머리글을 "모두 준비됨"으로 바꾼다. */
-    static int pendingCount(Context c) {
-        int n = 0;
-        for (Item item : all(c)) {
-            if (item.state == State.ACTION_NEEDED) n++;
-        }
-        return n;
-    }
-
     // ---------- 개별 판정 ----------
 
     /** 알림을 띄울 수 있는 상태인가. 테스트 알림이 먼저 묻는다. */
@@ -173,9 +164,9 @@ class ReadyCheck {
         }
         // 블루투스 끊김은 브로드캐스트 수신이라 앱이 백그라운드로 취급된다.
         // "앱 사용 중에만 허용"으로는 그 순간 좌표를 읽지 못한다.
-        boolean granted = Build.VERSION.SDK_INT < 29
-                || c.checkSelfPermission(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
-                        == PackageManager.PERMISSION_GRANTED;
+        // Nearby.hasPermission은 앞 항목(앱 사용 중 권한)까지 함께 본다. API 28 이하에서
+        // 앞 항목이 거부인데 이 항목만 완료로 뜨는 모순을 막는다.
+        boolean granted = Nearby.hasPermission(c);
         return new Item(R.string.ready_location_always,
                 granted ? State.OK : State.ACTION_NEEDED,
                 c.getString(granted ? R.string.ready_done : R.string.ready_needed),

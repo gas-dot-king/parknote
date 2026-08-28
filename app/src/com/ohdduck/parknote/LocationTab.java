@@ -395,18 +395,30 @@ class LocationTab {
             pendingFix = null;
             refresh.setEnabled(true);
             hasMe = Nearby.isValid(fix);
-            if (hasMe) {
-                myLat = fix.getLatitude();
-                myLon = fix.getLongitude();
-                myFixReliable = hasReliableAccuracy(fix);
-            } else {
+            if (!hasMe) {
                 myFixReliable = false;
+                showFixFailed();
+                return;
             }
+            myLat = fix.getLatitude();
+            myLon = fix.getLongitude();
+            myFixReliable = hasReliableAccuracy(fix);
             renderDistance();
         });
         // 권한/공급자 오류는 위 콜백을 동기 호출한다. 그 경우 이미 완료된 handle을
         // pending으로 되살리지 않는다.
         if (!delivered[0] && canAcceptFix(generation)) pendingFix = request;
+    }
+
+    /**
+     * 사용자가 직접 다시 잡기를 눌렀는데 15초 안에 못 잡은 경우.
+     * "잡는 중…"을 그대로 두면 영원히 기다리는 것처럼 보인다.
+     */
+    private void showFixFailed() {
+        distance.setText(R.string.location_fix_failed);
+        bearingText.setText("");
+        arrow.setVisibility(View.GONE);
+        stopCompass();
     }
 
     private boolean canAcceptFix(long generation) {

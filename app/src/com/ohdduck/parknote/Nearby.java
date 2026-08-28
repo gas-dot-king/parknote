@@ -14,6 +14,7 @@ import android.os.SystemClock;
 
 import org.json.JSONObject;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -211,22 +212,41 @@ class Nearby {
             cb.onFix(null);
             return COMPLETED_REQUEST;
         }
-        // COARSE만 허용됐으면 GPS를 요청할 수 없다. 그대로 요청하면 SecurityException이
-        // 나면서 "위치를 잡지 못했어요"로 끝나 버리므로, 처음부터 NETWORK만 본다.
-        String provider = null;
-        if (hasFinePermission(c) && isEnabled(lm, LocationManager.GPS_PROVIDER)) {
-            provider = LocationManager.GPS_PROVIDER;
-        } else if (isEnabled(lm, LocationManager.NETWORK_PROVIDER)) {
-            provider = LocationManager.NETWORK_PROVIDER;
-        }
-        if (provider == null) {
+        List<String> providers = providersFor(c, lm);
+        if (providers.isEmpty()) {
             cb.onFix(null);
             return COMPLETED_REQUEST;
         }
 
-        OneShotRequest request = new OneShotRequest(lm, provider, cb, !allowCached);
+        OneShotRequest request = new OneShotRequest(lm, providers, cb, !allowCached);
         request.start();
         return request;
+    }
+
+    /**
+     * 단발 측위에 걸 공급자.
+     *
+     * <p>Android 12+는 융합 공급자 하나면 된다 — GPS와 네트워크를 시스템이 합쳐 준다.
+     * 그 아래에서는 GPS와 NETWORK를 <b>함께</b> 건다. 예전처럼 GPS 하나만 걸면 실내에서
+     * 네트워크가 잡아 줄 수 있는데도 15초 타임아웃으로 끝났다. 먼저 오는 유효한 좌표가
+     * 이기고, 나머지는 removeUpdates 한 번으로 같이 풀린다.
+     *
+     * <p>COARSE만 허용됐으면 GPS를 요청할 수 없다. 그대로 요청하면 SecurityException이
+     * 나면서 "위치를 잡지 못했어요"로 끝나 버리므로 목록에서 뺀다.
+     */
+    private static List<String> providersFor(Context c, LocationManager lm) {
+        ArrayList<String> out = new ArrayList<>();
+        if (Build.VERSION.SDK_INT >= 31 && isEnabled(lm, LocationManager.FUSED_PROVIDER)) {
+            out.add(LocationManager.FUSED_PROVIDER);
+            return out;
+        }
+        if (hasFinePermission(c) && isEnabled(lm, LocationManager.GPS_PROVIDER)) {
+            out.add(LocationManager.GPS_PROVIDER);
+        }
+        if (isEnabled(lm, LocationManager.NETWORK_PROVIDER)) {
+            out.add(LocationManager.NETWORK_PROVIDER);
+        }
+        return out;
     }
 
     /**
@@ -235,7 +255,7 @@ class Nearby {
      */
     private static final class OneShotRequest implements FixRequest, LocationListener {
         private final LocationManager manager;
-        private final String provider;
+        private final List<String> providers;
         private final FixCallback callback;
         private final boolean requireFresh;
         private final long requestedAtElapsedNanos;
@@ -243,23 +263,31 @@ class Nearby {
         private final AtomicBoolean finished = new AtomicBoolean();
         private final Runnable timeout = () -> finish(null, true);
 
-        private OneShotRequest(LocationManager manager, String provider, FixCallback callback,
-                               boolean requireFresh) {
+        private OneShotRequest(LocationManager manager, List<String> providers,
+                               FixCallback callback, boolean requireFresh) {
             this.manager = manager;
-            this.provider = provider;
+            this.providers = providers;
             this.callback = callback;
             this.requireFresh = requireFresh;
             this.requestedAtElapsedNanos = SystemClock.elapsedRealtimeNanos();
         }
 
         private void start() {
-            try {
-                manager.requestLocationUpdates(
-                        provider, 0L, 0f, this, Looper.getMainLooper());
-                if (!finished.get()) main.postDelayed(timeout, 15000L);
-            } catch (SecurityException | IllegalArgumentException e) {
-                finish(null, true);
+            boolean listening = false;
+            for (String provider : providers) {
+                try {
+                    manager.requestLocationUpdates(
+                            provider, 0L, 0f, this, Looper.getMainLooper());
+                    listening = true;
+                } catch (SecurityException | IllegalArgumentException ignored) {
+                    // 이 공급자만 건너뛴다. 하나라도 걸렸으면 계속 기다린다.
+                }
             }
+            if (!listening) {
+                finish(null, true);
+                return;
+            }
+            if (!finished.get()) main.postDelayed(timeout, 15000L);
         }
 
         @Override

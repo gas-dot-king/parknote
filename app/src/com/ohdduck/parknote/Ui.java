@@ -184,15 +184,6 @@ class Ui {
         if (focus != null) focus.requestFocus();
     }
 
-    /** 다이얼로그를 띄우면서 키보드가 폼을 가리지 않게 화면을 줄인다. */
-    static void showResizing(AlertDialog dialog) {
-        dialog.show();
-        if (dialog.getWindow() != null) {
-            dialog.getWindow().setSoftInputMode(
-                    WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
-        }
-    }
-
     /**
      * 한 줄 입력만 받는 다이얼로그. 저장을 누르면 {@code onSave}가 입력값을 받는다.
      * 빈 값이면 아무 일도 하지 않고 닫힌다.
@@ -210,8 +201,9 @@ class Ui {
         AlertDialog dialog = new AlertDialog.Builder(c)
                 .setTitle(title)
                 .setView(wrap)
-                .setPositiveButton("저장", (d, w) -> onSave.onValue(input.getText().toString().trim()))
-                .setNegativeButton("취소", null)
+                .setPositiveButton(R.string.action_save,
+                        (d, w) -> onSave.onValue(input.getText().toString().trim()))
+                .setNegativeButton(R.string.action_cancel, null)
                 .create();
         showWithKeyboard(dialog, input);
     }

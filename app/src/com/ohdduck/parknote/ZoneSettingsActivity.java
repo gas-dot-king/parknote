@@ -12,8 +12,6 @@ import android.widget.Toast;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Locale;
 
 /**
  * 층 · 구역 · 기타 구역을 블록으로 편집한다.
@@ -29,7 +27,6 @@ import java.util.Locale;
  */
 public class ZoneSettingsActivity extends Activity {
 
-    private static final int MAX_ZONES_PER_GROUP = 30;
     private static final int MAX_ZONE_NAME_LENGTH = 24;
 
     private static final String STATE_ROWS = "rows";
@@ -129,8 +126,13 @@ public class ZoneSettingsActivity extends Activity {
     private void applyWindowInsets() {
         if (Build.VERSION.SDK_INT < 35) return;
         findViewById(R.id.zoneRoot).setOnApplyWindowInsetsListener((v, insets) -> {
-            android.graphics.Insets bars = insets.getInsets(WindowInsets.Type.systemBars());
-            v.setPadding(bars.left, bars.top, bars.right, bars.bottom);
+            // 엣지-투-엣지에서는 adjustResize가 스스로 동작하지 않는다. 키보드 인셋을
+            // 여기서 직접 받아야 저장·취소 줄이 키보드 아래로 숨지 않는다. 컷아웃은
+            // systemBars에 포함되지 않으므로 따로 합친다.
+            android.graphics.Insets bars = insets.getInsets(
+                    WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout());
+            android.graphics.Insets ime = insets.getInsets(WindowInsets.Type.ime());
+            v.setPadding(bars.left, bars.top, bars.right, Math.max(bars.bottom, ime.bottom));
             return WindowInsets.CONSUMED;
         });
     }
@@ -144,13 +146,13 @@ public class ZoneSettingsActivity extends Activity {
                 rows.size(), Store.MAX_ROWS));
         colsLabel.setText(getString(R.string.zone_cols_blocks_label, cols.size(), colMax));
         etcLabel.setText(getString(R.string.zone_etc_blocks_label,
-                etc.size(), MAX_ZONES_PER_GROUP));
+                etc.size(), Store.MAX_ETC_ZONES));
 
         ZoneBlocks.build(this, rowsBlocks, rows, Store.MAX_ROWS, true,
                 listener(rows, R.string.zone_rows_name));
         ZoneBlocks.build(this, colsBlocks, cols, colMax, true,
                 listener(cols, R.string.zone_cols_name));
-        ZoneBlocks.build(this, etcBlocks, etc, MAX_ZONES_PER_GROUP, true,
+        ZoneBlocks.build(this, etcBlocks, etc, Store.MAX_ETC_ZONES, true,
                 listener(etc, R.string.zone_etc_blocks_name));
 
         renderPreview();
@@ -307,30 +309,14 @@ public class ZoneSettingsActivity extends Activity {
 
     // ---------- 저장 ----------
 
+    /**
+     * 검증은 전부 Store.setGrid가 한다 (구역 최소 1개, 개수 상한, 격자↔기타 구역 겹침).
+     * 여기서 한 번 더 검사하면 규칙이 두 곳에 생겨서 언젠가 어긋난다.
+     */
     private void save() {
-        if (cols.isEmpty()) {
-            Toast.makeText(this, R.string.zone_required, Toast.LENGTH_SHORT).show();
-            return;
-        }
-        String[] rowArray = rows.toArray(new String[0]);
-        String[] colArray = cols.toArray(new String[0]);
-
-        // 기타 구역이 격자에서 만들어지는 이름과 겹치면 기록이 어느 쪽인지 모호해진다.
-        HashSet<String> gridNames = new HashSet<>();
-        for (String zone : Store.flatten(rowArray, colArray, Store.DEFAULT_SEP)) {
-            gridNames.add(zone.toLowerCase(Locale.ROOT));
-        }
-        for (String zone : etc) {
-            if (gridNames.contains(zone.toLowerCase(Locale.ROOT))) {
-                Toast.makeText(this, getString(R.string.err_zone_grid_overlap, zone),
-                        Toast.LENGTH_LONG).show();
-                return;
-            }
-        }
-
         try {
-            Store.setGrid(this, rowArray, colArray, Store.DEFAULT_SEP,
-                    etc.toArray(new String[0]));
+            Store.setGrid(this, rows.toArray(new String[0]), cols.toArray(new String[0]),
+                    Store.DEFAULT_SEP, etc.toArray(new String[0]));
         } catch (IllegalArgumentException e) {
             Toast.makeText(this, e.getMessage(), Toast.LENGTH_LONG).show();
             return;

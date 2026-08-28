@@ -22,6 +22,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
@@ -34,7 +35,8 @@ class Store {
     static final String LEGACY_PROFILE_ID = "legacy-default-profile";
     static final String LEGACY_VEHICLE_ID = "legacy-default-vehicle";
 
-    private static final int SCHEMA_VERSION = 5;
+    /** 저장 구조 버전. 올릴 때는 Backup.FORMAT도 함께 볼 것 — validate가 이 값보다 새 백업을 거부한다. */
+    static final int SCHEMA_VERSION = 5;
     static final int MAX_PROFILES = 6;
     static final int MAX_VEHICLES = 3;
     /** 격자 한 변의 상한. 칸이 너무 많으면 한 화면에서 고르는 이점이 사라진다. */
@@ -42,6 +44,8 @@ class Store {
     static final int MAX_COLS = 8;
     /** 층 없이 쓰는 목록형은 격자가 아니므로 예전 상한(30개)을 그대로 허용한다. */
     static final int MAX_FLAT_ZONES = 30;
+    /** 격자 밖 기타 구역의 상한. 화면과 저장 검증이 같은 값을 본다. */
+    static final int MAX_ETC_ZONES = 30;
     static final String DEFAULT_SEP = "-";
 
     // 층(rows) × 구역(cols) 격자. rows가 비면 cols가 그대로 버튼이 되는 1차원 목록이다.
@@ -184,34 +188,9 @@ class Store {
 
                 JSONArray oldHistory = safeArray(p.getString(PREF_HISTORY, "[]"));
                 if (oldHistory == null) oldHistory = new JSONArray();
-                JSONArray normalized = new JSONArray();
-                for (int i = 0; i < oldHistory.length(); i++) {
-                    JSONObject old = oldHistory.optJSONObject(i);
-                    if (old == null) continue;
-                    JSONObject entry = copyObject(old);
-                    if (clean(entry.optString("id", "")).isEmpty()) {
-                        entry.put("id", UUID.randomUUID().toString());
-                    }
-                    String profileId = clean(entry.optString("p", ""));
-                    if (findById(profileList, profileId) == null) profileId = LEGACY_PROFILE_ID;
-                    JSONObject profile = findById(profileList, profileId);
-                    if (profile == null) profile = firstProfile;
-                    entry.put("p", profile == null ? firstProfileId : profile.optString("id"));
-                    if (clean(entry.optString("pn", "")).isEmpty() && profile != null) {
-                        entry.put("pn", profile.optString("n",
-                                c.getString(R.string.onboarding_default_profile)));
-                    }
-                    String vehicleId = clean(entry.optString("c", ""));
-                    if (findById(vehicleList, vehicleId) == null) vehicleId = LEGACY_VEHICLE_ID;
-                    JSONObject vehicle = findById(vehicleList, vehicleId);
-                    if (vehicle == null) vehicle = firstVehicle;
-                    entry.put("c", vehicle == null ? firstVehicleId : vehicle.optString("id"));
-                    if (clean(entry.optString("cn", "")).isEmpty() && vehicle != null) {
-                        entry.put("cn", vehicle.optString("n",
-                                c.getString(R.string.onboarding_default_vehicle)));
-                    }
-                    normalized.put(entry);
-                }
+                JSONArray normalized = normalizeHistory(oldHistory, profileList, vehicleList,
+                        c.getString(R.string.onboarding_default_profile),
+                        c.getString(R.string.onboarding_default_vehicle));
 
                 p.edit()
                         .putString(PREF_PROFILES, profileList.toString())
@@ -229,6 +208,58 @@ class Store {
                 throw new RuntimeException(e);
             }
         }
+    }
+
+    /**
+     * v2.2의 {z, t} 기록과 id·주차장·차량이 빠진 기록을 새 구조로 맞춘다.
+     *
+     * <p>Context 없이 돌아가는 순수 함수다. 마이그레이션은 깨지면 기존 사용자의 기록이
+     * 통째로 사라지는 자리라 유닛 테스트가 붙어야 하는데, ensureSchema 안에 묻혀 있으면
+     * SharedPreferences 없이는 검증할 수 없다.
+     *
+     * <ul>
+     *   <li>id가 없으면 새로 만든다.</li>
+     *   <li>주차장·차량 id가 목록에 없으면 legacy id → 첫 항목 순으로 되돌린다.</li>
+     *   <li>이름 스냅샷(pn/cn)이 비어 있으면 그 시점의 이름을 채운다.</li>
+     * </ul>
+     */
+    static JSONArray normalizeHistory(JSONArray oldHistory, JSONArray profileList,
+                                      JSONArray vehicleList, String defaultProfileName,
+                                      String defaultVehicleName) throws JSONException {
+        JSONObject firstProfile = profileList.optJSONObject(0);
+        String firstProfileId = firstProfile == null
+                ? LEGACY_PROFILE_ID : firstProfile.optString("id", LEGACY_PROFILE_ID);
+        JSONObject firstVehicle = vehicleList.optJSONObject(0);
+        String firstVehicleId = firstVehicle == null
+                ? LEGACY_VEHICLE_ID : firstVehicle.optString("id", LEGACY_VEHICLE_ID);
+
+        JSONArray normalized = new JSONArray();
+        for (int i = 0; i < oldHistory.length(); i++) {
+            JSONObject old = oldHistory.optJSONObject(i);
+            if (old == null) continue;
+            JSONObject entry = copyObject(old);
+            if (clean(entry.optString("id", "")).isEmpty()) {
+                entry.put("id", UUID.randomUUID().toString());
+            }
+            String profileId = clean(entry.optString("p", ""));
+            if (findById(profileList, profileId) == null) profileId = LEGACY_PROFILE_ID;
+            JSONObject profile = findById(profileList, profileId);
+            if (profile == null) profile = firstProfile;
+            entry.put("p", profile == null ? firstProfileId : profile.optString("id"));
+            if (clean(entry.optString("pn", "")).isEmpty() && profile != null) {
+                entry.put("pn", profile.optString("n", defaultProfileName));
+            }
+            String vehicleId = clean(entry.optString("c", ""));
+            if (findById(vehicleList, vehicleId) == null) vehicleId = LEGACY_VEHICLE_ID;
+            JSONObject vehicle = findById(vehicleList, vehicleId);
+            if (vehicle == null) vehicle = firstVehicle;
+            entry.put("c", vehicle == null ? firstVehicleId : vehicle.optString("id"));
+            if (clean(entry.optString("cn", "")).isEmpty() && vehicle != null) {
+                entry.put("cn", vehicle.optString("n", defaultVehicleName));
+            }
+            normalized.put(entry);
+        }
+        return normalized;
     }
 
     private static JSONArray safeArray(String raw) {
@@ -524,10 +555,6 @@ class Store {
         return true;
     }
 
-    static String[] mainZones(Context c) {
-        return gridZones(activeProfile(c));
-    }
-
     static String[] etcZones(Context c) {
         return zonesOf(activeProfile(c), "etc", NO_ZONES, true);
     }
@@ -575,6 +602,10 @@ class Store {
         if (cols.length > colLimit) {
             throw new IllegalArgumentException(c.getString(R.string.zone_limit,
                     c.getString(R.string.zone_cols_name), colLimit));
+        }
+        if (etc != null && etc.length > MAX_ETC_ZONES) {
+            throw new IllegalArgumentException(c.getString(R.string.zone_limit,
+                    c.getString(R.string.zone_etc_blocks_name), MAX_ETC_ZONES));
         }
         // 격자가 만들어 내는 이름과 기타 구역이 겹치면 같은 이름의 버튼이 두 개가 되고,
         // 기록이 어느 쪽인지 모호해진다. 화면 검증에만 두면 온보딩처럼 다른 경로로
@@ -722,6 +753,7 @@ class Store {
             out.put(PREF_HISTORY, p.getString(PREF_HISTORY, "[]"));
             out.put(PREF_HABITS, p.getString(PREF_HABITS, "[]"));
             out.put(PREF_ONBOARDED, p.getBoolean(PREF_ONBOARDED, true));
+            out.put(PREF_LOCATION_FILTER, p.getBoolean(PREF_LOCATION_FILTER, false));
         } catch (JSONException e) {
             throw new RuntimeException(e);
         }
@@ -736,8 +768,14 @@ class Store {
         ensureSchema(c);
         cancelAllScheduled(c);
 
+        // 예전 백업에는 이 키가 없다. 그때는 지금 값을 유지한다 — 복원했다고 켜 둔 기능이
+        // 조용히 꺼지면 다음 주차 때 알림 세기만 달라져서 원인을 알 수 없다.
+        boolean locationFilter = data.has(PREF_LOCATION_FILTER)
+                ? data.optBoolean(PREF_LOCATION_FILTER, false)
+                : locationFilterOn(c);
         prefs(c).edit()
                 .putInt(PREF_SCHEMA, data.optInt(PREF_SCHEMA, SCHEMA_VERSION))
+                .putBoolean(PREF_LOCATION_FILTER, locationFilter)
                 .putString(PREF_PROFILES, data.optString(PREF_PROFILES, "[]"))
                 .putString(PREF_ACTIVE_PROFILE, data.optString(PREF_ACTIVE_PROFILE, ""))
                 .putString(PREF_VEHICLES, data.optString(PREF_VEHICLES, "[]"))
@@ -798,7 +836,9 @@ class Store {
         JSONArray hs = habits(c);
         for (int i = 0; i < hs.length(); i++) {
             JSONObject habit = hs.optJSONObject(i);
-            if (habit != null) Reminders.cancel(c, habit.optString("n"));
+            if (habit == null) continue;
+            Reminders.cancel(c, habit.optString("n"));
+            cancelHabitNotification(c, habit.optString("n"));
         }
         JSONArray vs = vehicles(c);
         for (int i = 0; i < vs.length(); i++) {
@@ -831,6 +871,11 @@ class Store {
      * @return 문제가 없으면 null, 있으면 사유 문자열 리소스 id.
      */
     static Integer validate(JSONObject data) {
+        // 봉투 format이 같아도 안의 스키마가 더 새것일 수 있다. 그대로 들이면 ensureSchema가
+        // "이미 최신"으로 보고 조기 리턴해서, 모르는 구조를 검증 없이 쓰게 된다.
+        if (data.optInt(PREF_SCHEMA, SCHEMA_VERSION) > SCHEMA_VERSION) {
+            return R.string.backup_err_newer;
+        }
         JSONArray profiles = safeArray(data.optString(PREF_PROFILES, ""));
         if (profiles == null || profiles.length() == 0) {
             return R.string.backup_err_no_profiles;
@@ -1128,7 +1173,7 @@ class Store {
     /** 위젯·블루투스 알림처럼 표시 당시의 차량/프로필을 명시해 저장할 때 사용한다. */
     static String recordInContext(Context c, String profileId, String vehicleId,
                                   String zone, String memo) {
-        return recordInContextInternal(c, profileId, vehicleId, zone, memo, null, true);
+        return recordInContextInternal(c, profileId, vehicleId, zone, memo, null, true, 0);
     }
 
     /**
@@ -1137,15 +1182,22 @@ class Store {
      * <p>A {@code null} snapshot deliberately means "no location at event time". It must not
      * fall back to a later fix, otherwise walking away after a Bluetooth disconnect can move the
      * parked-car marker to the user's later position.
+     *
+     * @param eventTime 차에서 내린(블루투스가 끊긴) 시각. 주차 시각은 버튼을 누른 순간이 아니라
+     *                  이 시각이다. 마트에 들어갔다가 40분 뒤 버튼을 누르면 좌표 스냅샷과
+     *                  주차 시각이 30분 넘게 벌어져 위치 탭이 정확한 좌표를 낡은 것으로 본다.
+     *                  0이면 지금 시각을 쓴다.
      */
     static String recordInContextUsingSnapshot(Context c, String profileId, String vehicleId,
-                                               String zone, String memo, Location snapshot) {
-        return recordInContextInternal(c, profileId, vehicleId, zone, memo, snapshot, false);
+                                               String zone, String memo, Location snapshot,
+                                               long eventTime) {
+        return recordInContextInternal(c, profileId, vehicleId, zone, memo, snapshot, false,
+                eventTime);
     }
 
     private static String recordInContextInternal(Context c, String profileId, String vehicleId,
                                                   String zone, String memo, Location snapshot,
-                                                  boolean useCurrentFix) {
+                                                  boolean useCurrentFix, long eventTime) {
         ensureSchema(c);
         String z = clean(zone);
         if (z.isEmpty()) return null;
@@ -1170,7 +1222,8 @@ class Store {
 
         String id = UUID.randomUUID().toString();
         JSONArray old = history(c);
-        JSONArray next = new JSONArray();
+        JSONArray next;
+        ArrayList<String> cancelTimers = new ArrayList<>();
         try {
             JSONObject entry = new JSONObject();
             entry.put("id", id);
@@ -1183,7 +1236,7 @@ class Store {
                     ? c.getString(R.string.profile_default_name)
                     : profile.optString("n", c.getString(R.string.profile_default_name)));
             entry.put("z", z);
-            entry.put("t", System.currentTimeMillis());
+            entry.put("t", eventTime > 0 ? eventTime : System.currentTimeMillis());
             String m = clean(memo);
             if (!m.isEmpty()) entry.put("m", m);
 
@@ -1194,39 +1247,12 @@ class Store {
             // 지도 열기를 직접 선택한 경우에만 선택한 외부 지도 앱으로 전달된다.
             Location fix = useCurrentFix ? Nearby.lastFix(c) : snapshot;
             putRecordLocation(entry, fix);
-            next.put(entry);
 
-            // 맥락(주차장×차량)별로 세면서 담는다. 전역 상한 하나로 자르면 차를 두 대
-            // 쓰는 사람이 한쪽을 자주 댔다는 이유로 다른 쪽 기록을 잃는다.
-            HashMap<String, Integer> perContext = new HashMap<>();
-            perContext.put(contextKey(profileId, vehicleId), 1); // 방금 넣은 기록
-
-            for (int i = 0; i < old.length(); i++) {
-                JSONObject previous = old.optJSONObject(i);
-                if (previous == null) continue;
-
-                // 같은 차량의 이전 주차 타이머는 차량이 다시 움직였다는 뜻이므로 해제한다.
-                if (vehicleId.equals(previous.optString("c"))
-                        && previous.optLong("due", 0) > 0) {
-                    ParkingTimers.cancel(c, previous.optString("id"));
-                    previous.remove("due");
-                }
-
-                String key = contextKey(previous.optString("p"), previous.optString("c"));
-                Integer used = perContext.get(key);
-                int count = used == null ? 0 : used;
-                if (count < MAX_HISTORY_PER_CONTEXT && next.length() < MAX_HISTORY) {
-                    perContext.put(key, count + 1);
-                    next.put(previous);
-                } else if (previous.optLong("due", 0) > 0) {
-                    // 잘려 나가는 기록의 타이머는 반드시 취소한다. 남겨 두면 이제
-                    // 존재하지 않는 기록을 가리키는 알람이 남는다.
-                    ParkingTimers.cancel(c, previous.optString("id"));
-                }
-            }
+            next = trimHistory(entry, old, cancelTimers);
         } catch (JSONException e) {
             throw new RuntimeException(e);
         }
+        for (String recordId : cancelTimers) ParkingTimers.cancel(c, recordId);
         // 위젯/알림 액션의 스냅샷을 현재 맥락으로도 전환해 저장 결과가 즉시 보이게 한다.
         prefs(c).edit()
                 .putString(PREF_HISTORY, next.toString())
@@ -1236,6 +1262,56 @@ class Store {
         cancelBtPrompt(c, vehicleId);
         notifyParkingHistoryChanged(c);
         return id;
+    }
+
+    /**
+     * 새 기록을 앞에 두고 옛 기록을 상한에 맞춰 잘라낸 목록을 만든다. 결과는 시각 내림차순이다.
+     *
+     * <p>Context 없이 돌아가는 순수 함수다. 타이머 해제는 여기서 직접 하지 않고
+     * {@code cancelTimers}에 기록 id를 쌓아 호출한 쪽이 처리하게 한다. 그래야 "맥락당 20개,
+     * 전체 240개, 같은 차량의 이전 타이머는 해제"라는 규칙을 유닛 테스트로 못 박을 수 있다.
+     *
+     * <ul>
+     *   <li>맥락(주차장×차량)별로 세면서 담는다. 전역 상한 하나로 자르면 차를 두 대 쓰는
+     *       사람이 한쪽을 자주 댔다는 이유로 다른 쪽 기록을 잃는다.</li>
+     *   <li>같은 차량의 이전 주차 타이머는 차량이 다시 움직였다는 뜻이므로 해제한다.</li>
+     *   <li>잘려 나가는 기록의 타이머도 반드시 해제한다. 남겨 두면 이제 존재하지 않는
+     *       기록을 가리키는 알람이 남는다.</li>
+     * </ul>
+     */
+    static JSONArray trimHistory(JSONObject entry, JSONArray old, List<String> cancelTimers)
+            throws JSONException {
+        String profileId = entry.optString("p");
+        String vehicleId = entry.optString("c");
+        JSONArray next = new JSONArray();
+        next.put(entry);
+
+        HashMap<String, Integer> perContext = new HashMap<>();
+        perContext.put(contextKey(profileId, vehicleId), 1); // 방금 넣은 기록
+
+        for (int i = 0; i < old.length(); i++) {
+            JSONObject previous = old.optJSONObject(i);
+            if (previous == null) continue;
+
+            if (vehicleId.equals(previous.optString("c"))
+                    && previous.optLong("due", 0) > 0) {
+                cancelTimers.add(previous.optString("id"));
+                previous.remove("due");
+            }
+
+            String key = contextKey(previous.optString("p"), previous.optString("c"));
+            Integer used = perContext.get(key);
+            int count = used == null ? 0 : used;
+            if (count < MAX_HISTORY_PER_CONTEXT && next.length() < MAX_HISTORY) {
+                perContext.put(key, count + 1);
+                next.put(previous);
+            } else if (previous.optLong("due", 0) > 0) {
+                cancelTimers.add(previous.optString("id"));
+            }
+        }
+        // 새 기록의 시각이 끊김 시점(과거)일 수 있으므로 자리는 시각으로 정한다.
+        // updateRecord도 같은 규칙으로 정렬하니, 목록은 언제나 시각 내림차순이다.
+        return sortHistory(next);
     }
 
     static boolean updateRecord(Context c, String recordId, String profileId, String vehicleId,
@@ -1552,11 +1628,6 @@ class Store {
         return out.toArray(new String[0]);
     }
 
-    /** 활성 차량·주차장 호환용. */
-    static String[] recentZones(Context c, int max) {
-        return recentZones(c, activeProfileId(c), activeVehicleId(c), max);
-    }
-
     /**
      * 홈 위젯에 올릴 구역. 격자가 버튼 수보다 크면 최근에 쓴 구역을 골라 담되,
      * <b>배치는 격자 순서를 그대로 지킨다</b>. 최근순으로 늘어놓으면 주차할 때마다
@@ -1622,6 +1693,14 @@ class Store {
         if (nm != null) nm.cancel("bt:" + vehicleId, NOTIF_ID_BT);
     }
 
+    /** 이미 게시된 습관 리마인더 알림을 거둔다. 항목을 지우거나 통째로 갈아 끼울 때. */
+    static void cancelHabitNotification(Context c, String name) {
+        if (name == null || name.isEmpty()) return;
+        NotificationManager nm =
+                (NotificationManager) c.getSystemService(Context.NOTIFICATION_SERVICE);
+        if (nm != null) nm.cancel(name, NOTIF_ID_HABIT);
+    }
+
     // ---------- 습관 체크 ----------
     // habits: [{n: 이름, r: 리마인더(0시 기준 분, -1=없음), days: ["yyyy-MM-dd" 최신순], lt: 오늘 체크 시각}]
 
@@ -1657,7 +1736,14 @@ class Store {
         JSONArray hs = habits(c);
         JSONArray next = new JSONArray();
         for (int i = 0; i < hs.length(); i++) {
-            if (i != index) next.put(hs.optJSONObject(i));
+            JSONObject h = hs.optJSONObject(i);
+            if (h == null) continue;
+            if (i == index) {
+                // 알람(Reminders.cancel)은 호출한 쪽이 거둔다. 이미 떠 있는 알림은 여기서.
+                cancelHabitNotification(c, h.optString("n"));
+                continue;
+            }
+            next.put(h);
         }
         saveHabits(c, next);
     }

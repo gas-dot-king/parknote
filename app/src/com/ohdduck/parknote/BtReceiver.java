@@ -64,27 +64,24 @@ public class BtReceiver extends BroadcastReceiver {
         }
         // Freeze the best fix at the disconnect event. The user may tap a zone after walking
         // away, so reading location again from that later broadcast would save the wrong spot.
+        // 시각도 같이 고정한다. 주차 시각은 버튼을 누른 순간이 아니라 차에서 내린 순간이다.
         Location parkingFix = Nearby.hasPermission(ctx) ? Nearby.lastFix(ctx) : null;
-        showParkPrompt(ctx, vehicle, parkingFix, null);
+        showParkPrompt(ctx, vehicle, parkingFix, System.currentTimeMillis(), null);
     }
 
     /**
-     * "어디에 대셨어요?" 알림을 띄운다.
+     * "어디에 대셨어요?" 알림을 띄운다 — 설정 탭의 테스트 알림 경로.
      *
-     * <p>브로드캐스트 수신과 설정 탭의 테스트 알림이 같은 코드를 쓴다. 테스트가
-     * 다른 경로를 타면 "테스트는 되는데 실제로는 안 온다"를 구별하지 못한다.
+     * <p>브로드캐스트 수신과 테스트 알림이 같은 코드를 쓴다. 테스트가 다른 경로를 타면
+     * "테스트는 되는데 실제로는 안 온다"를 구별하지 못한다. 토큰은 SettingsTab이
+     * 같은 tag/id의 예전 알림을 이번 테스트 성공으로 착각하지 않게 하는 1회용 표식이다.
      */
-    static void showParkPrompt(Context ctx, JSONObject vehicle) {
-        showParkPrompt(ctx, vehicle, Nearby.lastFix(ctx), null);
-    }
-
-    /** Test path: embeds a one-use token so SettingsTab cannot mistake an older prompt for it. */
     static void showParkPrompt(Context ctx, JSONObject vehicle, String testToken) {
-        showParkPrompt(ctx, vehicle, Nearby.lastFix(ctx), testToken);
+        showParkPrompt(ctx, vehicle, Nearby.lastFix(ctx), System.currentTimeMillis(), testToken);
     }
 
     private static void showParkPrompt(Context ctx, JSONObject vehicle, Location parkingFix,
-                                       String testToken) {
+                                       long eventTime, String testToken) {
         NotificationManager nm =
                 (NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
         if (nm == null || vehicle == null) return;
@@ -146,7 +143,7 @@ public class BtReceiver extends BroadcastReceiver {
                     .putExtra(ParkWidgetProvider.EXTRA_ZONE, zones[i])
                     .putExtra(ParkWidgetProvider.EXTRA_PROFILE_ID, profileId)
                     .putExtra(ParkWidgetProvider.EXTRA_VEHICLE_ID, vehicleId);
-            ParkWidgetProvider.putLocationSnapshot(it, parkingFix);
+            ParkWidgetProvider.putLocationSnapshot(it, parkingFix, eventTime);
             nb.addAction(new Notification.Action.Builder(
                     Icon.createWithResource(ctx, R.drawable.ic_notif), zones[i],
                     PendingIntent.getBroadcast(ctx, 200 + i, it,

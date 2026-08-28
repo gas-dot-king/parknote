@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- targetCellWidth/Height는 API 31+에서만 읽힌다. 그 아래는 minWidth/minHeight로 충분하다. -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:targetApi="s"
     android:minWidth="220dp"
     android:minHeight="150dp"
     android:targetCellWidth="4"

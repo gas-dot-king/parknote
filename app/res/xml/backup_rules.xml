@@ -1,8 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Android 11 이하의 백업 규칙. allowBackup="false"라 실제로는 어떤 백업도 일어나지
-  않지만, 12+의 data_extraction_rules와 짝을 맞춰 "클라우드로 아무것도 보내지 않는다"는
-  의도를 두 경로 모두에 명시해 둔다.
+  Android 11 이하의 백업 규칙. 전부 제외해서 클라우드로 아무것도 보내지 않는다.
+  allowBackup은 true다(12+의 기기 이전을 살리기 위해). 이 파일이 ≤11에서 실제 차단을 맡는다.
 -->
 <full-backup-content>
     <exclude domain="root" path="." />

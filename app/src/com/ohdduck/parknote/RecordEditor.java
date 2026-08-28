@@ -5,6 +5,7 @@ import android.app.AlertDialog;
 import android.app.DatePickerDialog;
 import android.app.TimePickerDialog;
 import android.content.Context;
+import android.os.Bundle;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -40,38 +41,115 @@ class RecordEditor {
     // ---------- 기록 편집 ----------
 
     /**
+     * 떠 있는 편집기 한 개. 호출한 화면이 회전 직전에 {@link #saveState}로 초안을 받아 두고,
+     * 다시 만들어진 뒤 {@link #show(Activity, ScreenHost, String, Bundle)}에 돌려주면
+     * 입력 중이던 값이 그대로 살아난다. 구역 편집기가 이미 이렇게 하는데 여기만 대상 id만
+     * 살리고 입력은 버리고 있었다.
+     */
+    static final class Session {
+        private static final String KEY_RECORD = "record_id";
+        private static final String KEY_PROFILE = "profile_id";
+        private static final String KEY_VEHICLE = "vehicle_id";
+        private static final String KEY_PARKED_AT = "parked_at";
+        private static final String KEY_DUE = "due";
+        private static final String KEY_ZONE = "zone";
+        private static final String KEY_MEMO = "memo";
+
+        final String recordId;
+        final AlertDialog dialog;
+        private final String[] profileId;
+        private final String[] vehicleId;
+        private final long[] parkedAt;
+        private final long[] due;
+        private final EditText zone;
+        private final EditText memo;
+
+        private Session(String recordId, AlertDialog dialog, String[] profileId,
+                        String[] vehicleId, long[] parkedAt, long[] due,
+                        EditText zone, EditText memo) {
+            this.recordId = recordId;
+            this.dialog = dialog;
+            this.profileId = profileId;
+            this.vehicleId = vehicleId;
+            this.parkedAt = parkedAt;
+            this.due = due;
+            this.zone = zone;
+            this.memo = memo;
+        }
+
+        boolean isShowing() {
+            return dialog.isShowing();
+        }
+
+        /** 지금 편집기에 들어 있는 값. trim하지 않은 초안이라 커서 앞뒤 공백도 살아난다. */
+        Bundle saveState() {
+            Bundle out = new Bundle();
+            out.putString(KEY_RECORD, recordId);
+            out.putString(KEY_PROFILE, profileId[0]);
+            out.putString(KEY_VEHICLE, vehicleId[0]);
+            out.putLong(KEY_PARKED_AT, parkedAt[0]);
+            out.putLong(KEY_DUE, due[0]);
+            out.putString(KEY_ZONE, zone.getText().toString());
+            out.putString(KEY_MEMO, memo.getText().toString());
+            return out;
+        }
+
+        static String recordIdOf(Bundle draft) {
+            return draft == null ? null : draft.getString(KEY_RECORD);
+        }
+    }
+
+    static Session show(Activity a, ScreenHost host, String recordId) {
+        return show(a, host, recordId, null);
+    }
+
+    /**
      * 기록 편집기를 연다. 기록이 없으면 알리고 null을 돌려준다.
      *
-     * @return 떠 있는 다이얼로그. 호출한 화면이 회전 대비로 상태를 추적할 수 있게 넘긴다.
+     * @param draft 회전 전 {@link Session#saveState}가 만든 초안. 같은 기록의 것일 때만 쓴다.
+     * @return 떠 있는 편집기. 호출한 화면이 회전 대비로 상태를 추적할 수 있게 넘긴다.
      */
-    static AlertDialog show(Activity a, ScreenHost host, String recordId) {
+    static Session show(Activity a, ScreenHost host, String recordId, Bundle draft) {
         JSONObject record = Store.recordById(a, recordId);
         if (record == null) {
             Toast.makeText(a, R.string.record_not_found, Toast.LENGTH_SHORT).show();
             return null;
         }
-        final String[] profileId = {record.optString("p", Store.activeProfileId(a))};
-        final String[] vehicleId = {record.optString("c", Store.activeVehicleId(a))};
-        final long[] parkedAt = {record.optLong("t", System.currentTimeMillis())};
-        final long[] due = {record.optLong("due", 0)};
+        boolean restore = draft != null && recordId.equals(Session.recordIdOf(draft));
+        final String[] profileId = {restore
+                ? draft.getString(Session.KEY_PROFILE, record.optString("p"))
+                : record.optString("p", Store.activeProfileId(a))};
+        final String[] vehicleId = {restore
+                ? draft.getString(Session.KEY_VEHICLE, record.optString("c"))
+                : record.optString("c", Store.activeVehicleId(a))};
+        final long[] parkedAt = {restore
+                ? draft.getLong(Session.KEY_PARKED_AT, record.optLong("t"))
+                : record.optLong("t", System.currentTimeMillis())};
+        final long[] due = {restore
+                ? draft.getLong(Session.KEY_DUE, record.optLong("due", 0))
+                : record.optLong("due", 0)};
+        String zoneText = restore
+                ? draft.getString(Session.KEY_ZONE, "") : record.optString("z", "");
+        String memoText = restore
+                ? draft.getString(Session.KEY_MEMO, "") : Store.recordMemo(record);
 
         LinearLayout form = Ui.form(a);
 
-        Button profileButton = Ui.pickerButton(a, profileButtonText(a, record));
+        Button profileButton = Ui.pickerButton(a, profileButtonLabel(a, record, profileId[0]));
         Ui.addField(form, a.getString(R.string.record_label_profile), profileButton, 0);
 
-        Button vehicleButton = Ui.pickerButton(a, vehicleButtonText(a, record));
+        Button vehicleButton = Ui.pickerButton(a, vehicleButtonLabel(a, record, vehicleId[0]));
         Ui.addField(form, a.getString(R.string.record_label_vehicle), vehicleButton, 12);
 
         EditText zone = Ui.input(a, a.getString(R.string.record_zone_hint));
-        zone.setText(record.optString("z", ""));
+        zone.setText(zoneText);
         Ui.addField(form, a.getString(R.string.record_label_zone), zone, 12);
 
         Button timeButton = Ui.pickerButton(a, Store.formatFull(parkedAt[0]));
         Ui.addField(form, a.getString(R.string.record_label_time), timeButton, 12);
 
         EditText memo = Ui.multilineInput(a, a.getString(R.string.record_memo_hint), 2, 4);
-        memo.setText(Store.recordMemo(record));
+        memo.setText(memoText);
         Ui.addField(form, a.getString(R.string.record_label_memo), memo, 12);
 
         Button timerButton = Ui.pickerButton(a, timerButtonText(a, due[0]));
@@ -79,11 +157,11 @@ class RecordEditor {
 
         profileButton.setOnClickListener(v -> chooseProfile(a, profileId[0], id -> {
             profileId[0] = id;
-            profileButton.setText(Store.profileName(a, id));
+            profileButton.setText(profileButtonLabel(a, record, id));
         }));
         vehicleButton.setOnClickListener(v -> chooseVehicle(a, vehicleId[0], id -> {
             vehicleId[0] = id;
-            vehicleButton.setText(Store.vehicleName(a, id));
+            vehicleButton.setText(vehicleButtonLabel(a, record, id));
         }));
         timeButton.setOnClickListener(v -> pickDateTime(a, parkedAt[0], value -> {
             parkedAt[0] = value;
@@ -105,7 +183,7 @@ class RecordEditor {
                         parkedAt[0], due[0]),
                 parent -> confirmDelete(a, host, recordId, parent));
         dialog.show();
-        return dialog;
+        return new Session(recordId, dialog, profileId, vehicleId, parkedAt, due, zone, memo);
     }
 
     private static boolean save(Activity a, ScreenHost host, String recordId,
@@ -285,20 +363,18 @@ class RecordEditor {
 
     // ---------- 라벨 ----------
 
-    private static String profileButtonText(Activity a, JSONObject record) {
-        String id = record.optString("p", "");
-        return Store.profileById(a, id) == null
-                ? a.getString(R.string.profile_deleted_prefix,
-                        Store.recordProfileName(a, record))
-                : Store.recordProfileName(a, record);
+    /**
+     * 선택된 주차장의 버튼 문구. 목록에 있으면 지금 이름, 없으면(기록이 가리키던 주차장이
+     * 지워졌으면) 기록에 남은 이름 스냅샷에 "삭제된" 표시를 붙인다.
+     */
+    private static String profileButtonLabel(Activity a, JSONObject record, String id) {
+        if (Store.profileById(a, id) != null) return Store.profileName(a, id);
+        return a.getString(R.string.profile_deleted_prefix, Store.recordProfileName(a, record));
     }
 
-    private static String vehicleButtonText(Activity a, JSONObject record) {
-        String id = record.optString("c", "");
-        return Store.vehicleById(a, id) == null
-                ? a.getString(R.string.vehicle_deleted_prefix,
-                        Store.recordVehicleName(a, record))
-                : Store.recordVehicleName(a, record);
+    private static String vehicleButtonLabel(Activity a, JSONObject record, String id) {
+        if (Store.vehicleById(a, id) != null) return Store.vehicleName(a, id);
+        return a.getString(R.string.vehicle_deleted_prefix, Store.recordVehicleName(a, record));
     }
 
     private static String timerButtonText(Context c, long due) {

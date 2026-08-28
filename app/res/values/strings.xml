@@ -402,6 +402,7 @@
     <string name="location_here">거의 다 왔어요</string>
     <string name="location_accuracy_warning">저장된 위치 또는 현재 위치의 정확도가 낮아 방향을 표시하지 않아요.</string>
     <string name="location_waiting">내 위치를 잡는 중…</string>
+    <string name="location_fix_failed">현재 위치를 잡지 못했어요. 지상으로 올라와 다시 시도해 주세요</string>
 
     <string name="location_empty_no_record">아직 저장된 주차 기록이 없어요.\n홈에서 구역을 누르면 그 순간의 위치도 함께 저장됩니다.</string>
     <string name="location_empty_no_coords">이 기록에는 위치가 없어요.\n위치 권한을 켠 뒤 저장한 기록부터 여기에 표시됩니다.</string>

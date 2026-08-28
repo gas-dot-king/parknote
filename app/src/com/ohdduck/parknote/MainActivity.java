@@ -51,7 +51,7 @@ public class MainActivity extends Activity implements ScreenHost, Tabs.Listener 
     private static final int HISTORY_SHOWN = 5;
 
     private static final String STATE_PENDING_EDIT = "pending_edit_record_id";
-    private static final String STATE_OPEN_RECORD = "open_record_id";
+    private static final String STATE_EDITOR = "record_editor";
     private static final String STATE_TAB = "selected_tab";
 
     private Tabs tabs;
@@ -89,8 +89,10 @@ public class MainActivity extends Activity implements ScreenHost, Tabs.Listener 
 
     /** 알림·위젯에서 넘어온 "이 기록을 열어라" 요청. 화면이 준비된 뒤 처리한다. */
     private String pendingEditRecordId;
-    /** 기록 편집기가 떠 있는 동안의 대상 id. 회전 뒤 같은 편집기를 다시 연다. */
-    private String openRecordId;
+    /** 회전 직전 편집기에 입력 중이던 초안. pendingEditRecordId와 함께 복원한다. */
+    private Bundle pendingEditorDraft;
+    /** 떠 있는 기록 편집기. 회전 때 초안까지 저장해 같은 상태로 다시 연다. */
+    private RecordEditor.Session editor;
 
     /** 화면이 떠 있는 동안 매분 갱신 ("n분 전" 표시, 자정 넘김 시 습관 체크 상태) */
     private final BroadcastReceiver clockTick = new BroadcastReceiver() {
@@ -120,15 +122,23 @@ public class MainActivity extends Activity implements ScreenHost, Tabs.Listener 
         int startTab = Tabs.HOME;
         if (savedInstanceState != null) {
             pendingEditRecordId = savedInstanceState.getString(STATE_PENDING_EDIT);
-            // 회전 전에 열려 있던 편집기를 다시 연다. 예전에는 그냥 사라졌다.
-            String reopen = savedInstanceState.getString(STATE_OPEN_RECORD);
-            if (reopen != null) pendingEditRecordId = reopen;
+            // 회전 전에 열려 있던 편집기를 입력 중이던 값까지 그대로 다시 연다.
+            Bundle draft = savedInstanceState.getBundle(STATE_EDITOR);
+            if (draft != null) {
+                pendingEditRecordId = RecordEditor.Session.recordIdOf(draft);
+                pendingEditorDraft = draft;
+            }
             startTab = savedInstanceState.getInt(STATE_TAB, Tabs.HOME);
+        } else {
+            // 알림·위젯 인텐트는 처음 열릴 때 한 번만 처리한다. 회전 뒤에도 getIntent()는
+            // 같은 인텐트라, 여기서 다시 읽으면 닫아 둔 편집기가 되살아나고 사용자가
+            // 바꾼 주차장이 알림의 주차장으로 되돌아간다. 이후 인텐트는 onNewIntent가
+            // 받는다(singleTask). 권한 요청도 같은 이유로 회전마다 다시 묻지 않는다.
+            handleNavigationIntent(getIntent());
+            requestNeededPermissions();
         }
-        handleNavigationIntent(getIntent());
         rebuildZoneGrids();
 
-        requestNeededPermissions();
         Reminders.scheduleAll(this);
         ParkingTimers.scheduleAll(this);
         tabs.select(startTab);
@@ -140,12 +150,17 @@ public class MainActivity extends Activity implements ScreenHost, Tabs.Listener 
         // Android 15+ 강제 엣지-투-엣지: 시스템 바 높이만큼 여백 확보.
         // 가로 방향도 함께 본다. 가로 모드나 디스플레이 컷아웃이 있는 기기에서
         // 좌우 인셋을 빼먹으면 버튼이 컷아웃 아래로 들어간다.
-        // 하단 인셋은 이제 탭 바가 받는다 — 탭 바가 화면 맨 아래에 있으므로
-        // 여기서 먹지 않으면 제스처 바 아래로 탭이 깔린다.
+        // 하단 인셋은 탭 바 자신이 패딩으로 받는다. 루트에 주면 탭 바 아래로
+        // 창 배경(bg)이 비쳐서 제스처 영역만 색이 다른 띠가 생긴다.
         if (Build.VERSION.SDK_INT < 35) return;
+        View nav = findViewById(R.id.bottomNav);
+        int navBottom = nav.getPaddingBottom();
         findViewById(R.id.root).setOnApplyWindowInsetsListener((v, insets) -> {
-            android.graphics.Insets bars = insets.getInsets(WindowInsets.Type.systemBars());
-            v.setPadding(bars.left, bars.top, bars.right, bars.bottom);
+            android.graphics.Insets bars = insets.getInsets(
+                    WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout());
+            v.setPadding(bars.left, bars.top, bars.right, 0);
+            nav.setPadding(nav.getPaddingLeft(), nav.getPaddingTop(), nav.getPaddingRight(),
+                    navBottom + bars.bottom);
             return WindowInsets.CONSUMED;
         });
     }
@@ -241,7 +256,7 @@ public class MainActivity extends Activity implements ScreenHost, Tabs.Listener 
     protected void onSaveInstanceState(Bundle out) {
         super.onSaveInstanceState(out);
         out.putString(STATE_PENDING_EDIT, pendingEditRecordId);
-        out.putString(STATE_OPEN_RECORD, openRecordId);
+        if (editor != null && editor.isShowing()) out.putBundle(STATE_EDITOR, editor.saveState());
         out.putInt(STATE_TAB, tabs == null ? Tabs.HOME : tabs.current());
     }
 
@@ -321,16 +336,24 @@ public class MainActivity extends Activity implements ScreenHost, Tabs.Listener 
     private void openPendingRecordEditor() {
         if (pendingEditRecordId == null) return;
         String recordId = pendingEditRecordId;
+        Bundle draft = pendingEditorDraft;
         pendingEditRecordId = null;
-        openRecordEditor(recordId);
+        pendingEditorDraft = null;
+        openRecordEditor(recordId, draft);
     }
 
-    /** 편집기를 열면서 대상 id를 기억한다. 회전으로 액티비티가 다시 만들어져도 이어진다. */
     private void openRecordEditor(String recordId) {
-        AlertDialog dialog = RecordEditor.show(this, this, recordId);
-        if (dialog == null) return;
-        openRecordId = recordId;
-        dialog.setOnDismissListener(d -> openRecordId = null);
+        openRecordEditor(recordId, null);
+    }
+
+    /** 편집기를 열면서 세션을 기억한다. 회전으로 액티비티가 다시 만들어져도 초안째 이어진다. */
+    private void openRecordEditor(String recordId, Bundle draft) {
+        RecordEditor.Session session = RecordEditor.show(this, this, recordId, draft);
+        if (session == null) return;
+        editor = session;
+        session.dialog.setOnDismissListener(d -> {
+            if (editor == session) editor = null;
+        });
     }
 
     private void editLatestRecord() {

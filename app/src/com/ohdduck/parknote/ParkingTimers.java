@@ -35,7 +35,7 @@ class ParkingTimers {
         if (recordId == null || recordId.isEmpty() || due <= System.currentTimeMillis()) return;
         AlarmManager am = (AlarmManager) c.getSystemService(Context.ALARM_SERVICE);
         if (am == null) return;
-        PendingIntent pi = pending(c, recordId, due);
+        PendingIntent pi = pending(c, recordId, due, PendingIntent.FLAG_UPDATE_CURRENT);
         // Google Play의 제한된 정확한 알람 권한을 요청하지 않는다. 출차 알림은 배터리 정책에
         // 따라 조금 늦을 수 있지만, 앱이 절전 상태여도 가능한 한 빨리 전달된다.
         am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, due, pi);
@@ -44,19 +44,24 @@ class ParkingTimers {
     static void cancel(Context c, String recordId) {
         if (recordId == null || recordId.isEmpty()) return;
         AlarmManager am = (AlarmManager) c.getSystemService(Context.ALARM_SERVICE);
-        if (am != null) am.cancel(pending(c, recordId, 0));
+        // NO_CREATE: 없던 PendingIntent를 취소하려고 만들었다 지우지 않는다.
+        // PendingIntent의 동일성은 data URI로 정해지므로 due 값은 아무거나 넣어도 같은 것을 찾는다.
+        PendingIntent pi = pending(c, recordId, 0, PendingIntent.FLAG_NO_CREATE);
+        if (pi != null) {
+            if (am != null) am.cancel(pi);
+            pi.cancel();
+        }
         NotificationManager nm =
                 (NotificationManager) c.getSystemService(Context.NOTIFICATION_SERVICE);
         if (nm != null) nm.cancel("timer:" + recordId, Store.NOTIF_ID_TIMER);
     }
 
-    private static PendingIntent pending(Context c, String recordId, long due) {
+    private static PendingIntent pending(Context c, String recordId, long due, int flags) {
         Intent it = new Intent(c, ParkingTimerReceiver.class)
                 .setAction(ACTION)
                 .setData(Uri.fromParts("parknote", "timer/" + recordId, null))
                 .putExtra(EXTRA_RECORD_ID, recordId)
                 .putExtra(EXTRA_DUE, due);
-        return PendingIntent.getBroadcast(c, 0, it,
-                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        return PendingIntent.getBroadcast(c, 0, it, flags | PendingIntent.FLAG_IMMUTABLE);
     }
 }

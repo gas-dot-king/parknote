@@ -25,6 +25,8 @@ public class ParkWidgetProvider extends AppWidgetProvider {
     private static final String EXTRA_LOCATION_LON = "location_lon";
     private static final String EXTRA_LOCATION_TIME = "location_time";
     private static final String EXTRA_LOCATION_ACCURACY = "location_accuracy";
+    /** 알림을 띄운 사건(블루투스 끊김)의 시각. 기록의 주차 시각이 된다. */
+    private static final String EXTRA_EVENT_TIME = "event_time";
 
     // 위젯은 고정 크기라 설정된 자주 쓰는 구역 중 앞 6개를 표시한다.
     private static final int[] BTN_IDS = {
@@ -44,7 +46,8 @@ public class ParkWidgetProvider extends AppWidgetProvider {
                 String recordId;
                 if (intent.getBooleanExtra(EXTRA_LOCATION_SNAPSHOT, false)) {
                     recordId = Store.recordInContextUsingSnapshot(ctx, profileId, vehicleId,
-                            zone, "", locationSnapshot(intent));
+                            zone, "", locationSnapshot(intent),
+                            intent.getLongExtra(EXTRA_EVENT_TIME, 0L));
                 } else {
                     recordId = Store.recordInContext(ctx, profileId, vehicleId, zone, "");
                 }
@@ -58,9 +61,14 @@ public class ParkWidgetProvider extends AppWidgetProvider {
         super.onReceive(ctx, intent);
     }
 
-    /** Adds an event-time location to an action Intent, including an explicit no-fix marker. */
-    static void putLocationSnapshot(Intent intent, Location fix) {
+    /**
+     * Adds an event-time location to an action Intent, including an explicit no-fix marker.
+     *
+     * @param eventTime 사건 시각(ms). 좌표가 없어도 항상 싣는다 — 주차 시각은 좌표와 무관하다.
+     */
+    static void putLocationSnapshot(Intent intent, Location fix, long eventTime) {
         intent.putExtra(EXTRA_LOCATION_SNAPSHOT, true);
+        intent.putExtra(EXTRA_EVENT_TIME, Math.max(0L, eventTime));
         boolean valid = fix != null
                 && Store.validCoordinates(fix.getLatitude(), fix.getLongitude());
         intent.putExtra(EXTRA_LOCATION_PRESENT, valid);

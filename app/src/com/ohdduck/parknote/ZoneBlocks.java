@@ -110,9 +110,11 @@ class ZoneBlocks {
         // 끌어서 순서 바꾸기. 시작한 블록은 자기 자리를 반투명으로 비워 둬서
         // "지금 이걸 들고 있다"가 보이게 한다.
         view.setOnLongClickListener(v -> {
-            v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
             ClipData clip = ClipData.newPlainText(DRAG_LABEL, String.valueOf(index));
-            v.startDragAndDrop(clip, new View.DragShadowBuilder(v), index, 0);
+            // 드래그가 시작되지 않으면(접근성 서비스, 창 상태 등) 반투명 표시를 남기지 않는다.
+            // DRAG_ENDED가 오지 않으니 되돌릴 기회가 없다.
+            if (!v.startDragAndDrop(clip, new View.DragShadowBuilder(v), index, 0)) return false;
+            v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
             v.setAlpha(0.3f);
             return true;
         });

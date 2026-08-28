@@ -102,9 +102,13 @@ public class OnboardingActivity extends Activity {
         if (Build.VERSION.SDK_INT < 35) return;
         View root = findViewById(R.id.onboardingRoot);
         root.setOnApplyWindowInsetsListener((v, insets) -> {
-            android.graphics.Insets bars = insets.getInsets(WindowInsets.Type.systemBars());
+            // 차량·주차장 이름은 다이얼로그가 아니라 이 화면의 EditText다. 엣지-투-엣지에서는
+            // 키보드 인셋을 직접 받아야 입력 중인 칸과 다음 버튼이 키보드 아래로 숨지 않는다.
+            android.graphics.Insets bars = insets.getInsets(
+                    WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout());
+            android.graphics.Insets ime = insets.getInsets(WindowInsets.Type.ime());
             v.setPadding(dp(24) + bars.left, dp(28) + bars.top,
-                    dp(24) + bars.right, dp(20) + bars.bottom);
+                    dp(24) + bars.right, dp(20) + Math.max(bars.bottom, ime.bottom));
             return WindowInsets.CONSUMED;
         });
     }

@@ -44,22 +44,25 @@ class Reminders {
             cal.add(Calendar.DAY_OF_YEAR, 1);
         }
         // 별도 정확한 알람 권한 없이 동작한다. 절전 모드에서는 수 분 늦어질 수 있다.
-        am.setAndAllowWhileIdle(
-                AlarmManager.RTC_WAKEUP, cal.getTimeInMillis(), pending(c, name));
+        am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, cal.getTimeInMillis(),
+                pending(c, name, PendingIntent.FLAG_UPDATE_CURRENT));
     }
 
     static void cancel(Context c, String name) {
         AlarmManager am = (AlarmManager) c.getSystemService(Context.ALARM_SERVICE);
-        if (am != null) am.cancel(pending(c, name));
+        // NO_CREATE: 없던 PendingIntent를 취소하려고 만들었다 지우지 않는다.
+        PendingIntent pi = pending(c, name, PendingIntent.FLAG_NO_CREATE);
+        if (pi == null) return;
+        if (am != null) am.cancel(pi);
+        pi.cancel();
     }
 
-    private static PendingIntent pending(Context c, String name) {
+    private static PendingIntent pending(Context c, String name, int flags) {
         // 습관별 data URI로 PendingIntent를 구분 — 이름 hashCode 충돌 걱정 없음
         Intent it = new Intent(c, ReminderReceiver.class)
                 .setAction(ACTION)
                 .setData(Uri.fromParts("parknote", "remind/" + name, null))
                 .putExtra(EXTRA_NAME, name);
-        return PendingIntent.getBroadcast(c, 0, it,
-                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        return PendingIntent.getBroadcast(c, 0, it, flags | PendingIntent.FLAG_IMMUTABLE);
     }
 }

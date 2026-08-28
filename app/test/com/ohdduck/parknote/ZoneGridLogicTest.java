@@ -2,6 +2,7 @@ package com.ohdduck.parknote;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
@@ -264,9 +265,19 @@ public class ZoneGridLogicTest {
 
     @Test
     public void hasCoords_는_위경도가_둘_다_있어야_참() throws JSONException {
-        assertTrue(!Store.hasCoords(null));
-        assertTrue(!Store.hasCoords(new JSONObject().put("lat", 37.5)));
+        assertFalse(Store.hasCoords(null));
+        assertFalse(Store.hasCoords(new JSONObject().put("lat", 37.5)));
         assertTrue(Store.hasCoords(new JSONObject().put("lat", 37.5).put("lon", 127.0)));
+    }
+
+    // ---------- 기타 구역 상한 ----------
+
+    @Test
+    public void 기타_구역_상한은_목록형_구역_상한과_같다() {
+        // README가 "기타 구역은 0~30개"라고 약속한다. 화면(ZoneSettingsActivity)과
+        // 저장 검증(Store.setGrid)이 같은 상수를 보므로 여기서 값만 못 박는다.
+        assertEquals(30, Store.MAX_ETC_ZONES);
+        assertEquals(Store.MAX_FLAT_ZONES, Store.MAX_ETC_ZONES);
     }
 
     private static String[] toArray(JSONArray a) {
