@@ -11,6 +11,9 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- 재부팅 후 알람 재예약 -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- 주행 중 위치 추적(DriveTracker, 설정에서 켜는 선택 기능). 둘 다 설치 시 자동 부여된다. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
 
     <!-- 차에서 내린 곳이 등록한 주차장인지 판정해 알림 세기를 조절한다 (기본 꺼짐).
          좌표는 기기 안에서만 쓰고 어디로도 보내지 않는다. 블루투스 끊김은 브로드캐스트
@@ -30,11 +33,14 @@
         android:name="android.hardware.bluetooth"
         android:required="false" />
 
-    <!-- 음성 인식 앱이 있는지 묻기 위해(Android 11+ 패키지 가시성). 없으면 버튼을 숨긴다. -->
+    <!-- Android 11+ 패키지 가시성. 음성 인식 앱과 지도 앱(네이버·카카오)이 있는지 물어
+         없으면 버튼을 숨긴다. -->
     <queries>
         <intent>
             <action android:name="android.speech.action.RECOGNIZE_SPEECH" />
         </intent>
+        <package android:name="com.nhn.android.nmap" />
+        <package android:name="net.daum.android.map" />
     </queries>
 
     <!-- allowBackup은 true로 둔다. false면 클라우드 백업뿐 아니라 기기 이전(D2D)까지
@@ -133,6 +139,13 @@
         <receiver
             android:name=".ParkingTimerReceiver"
             android:exported="false" />
+
+        <!-- 주행 중 위치 추적. BtReceiver가 시동(연결)에 켜고 끊김에 끈다.
+             위치 타입 포그라운드 서비스라 Play Console의 포그라운드 서비스 선언이 필요하다. -->
+        <service
+            android:name=".DriveTracker"
+            android:exported="false"
+            android:foregroundServiceType="location" />
 
         <!-- 퀵설정 타일: 현재 주차 위치 표시 + 앱 열기 -->
         <service

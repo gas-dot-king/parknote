@@ -25,6 +25,8 @@ class LocationFilterDialogs {
     static final int REQ_FOREGROUND = 22;
     static final int REQ_BACKGROUND = 23;
     static final int REQ_CAPTURE = 24;
+    static final int REQ_DRIVE_FOREGROUND = 27;
+    static final int REQ_DRIVE_BACKGROUND = 28;
 
     /** 주차장 좌표를 새로 잡을 때 기다리는 시간. 실내면 이 안에 못 잡고 포기한다. */
     private static final long CAPTURE_TIMEOUT_MS = 15000L;
@@ -149,18 +151,62 @@ class LocationFilterDialogs {
                 .show();
     }
 
+    // ---------- 주행 중 위치 추적 ----------
+
+    /**
+     * 켜기/끄기. 켜려면 "항상 허용"까지 필요하다 — 시동이 켜지는 순간 앱은 백그라운드다.
+     * 끄면 지금 도는 추적도 바로 멈춘다.
+     */
+    static void showDriveTracking(Activity a) {
+        boolean on = Store.driveTrackingOn(a);
+        new AlertDialog.Builder(a)
+                .setTitle(R.string.drive_title)
+                .setMessage(a.getString(R.string.drive_message,
+                        a.getString(on ? R.string.state_on : R.string.state_off)))
+                .setPositiveButton(on ? R.string.location_disable : R.string.location_enable,
+                        (d, w) -> {
+                            if (!on) {
+                                enableDrive(a);
+                                return;
+                            }
+                            Store.setDriveTracking(a, false);
+                            DriveTracker.stop(a);
+                            notifyChanged(a);
+                            Toast.makeText(a, R.string.drive_turned_off, Toast.LENGTH_SHORT).show();
+                        })
+                .setNegativeButton(R.string.action_close, null)
+                .show();
+    }
+
+    private static void enableDrive(Activity a) {
+        if (!Nearby.hasForegroundPermission(a)) {
+            a.requestPermissions(Nearby.FOREGROUND_PERMISSIONS, REQ_DRIVE_FOREGROUND);
+            return;
+        }
+        if (Build.VERSION.SDK_INT >= 29 && !Nearby.hasPermission(a)) {
+            a.requestPermissions(new String[]{Manifest.permission.ACCESS_BACKGROUND_LOCATION},
+                    REQ_DRIVE_BACKGROUND);
+            return;
+        }
+        Store.setDriveTracking(a, true);
+        notifyChanged(a);
+        Toast.makeText(a, R.string.drive_turned_on, Toast.LENGTH_SHORT).show();
+    }
+
     /** 위치 권한 요청 결과를 처리한다. 이 흐름의 결과였으면 true. */
     static boolean handlePermissionResult(Activity a, int requestCode,
                                           String[] permissions, int[] results) {
         boolean granted = Nearby.anyLocationGranted(permissions, results);
-        if (requestCode == REQ_FOREGROUND) {
-            if (granted) enable(a);
-            else Toast.makeText(a, R.string.location_denied, Toast.LENGTH_LONG).show();
+        if (requestCode == REQ_FOREGROUND || requestCode == REQ_DRIVE_FOREGROUND) {
+            if (!granted) Toast.makeText(a, R.string.location_denied, Toast.LENGTH_LONG).show();
+            else if (requestCode == REQ_FOREGROUND) enable(a);
+            else enableDrive(a);
             return true;
         }
-        if (requestCode == REQ_BACKGROUND) {
-            if (granted) enable(a);
-            else showBackgroundHelp(a);
+        if (requestCode == REQ_BACKGROUND || requestCode == REQ_DRIVE_BACKGROUND) {
+            if (!granted) showBackgroundHelp(a);
+            else if (requestCode == REQ_BACKGROUND) enable(a);
+            else enableDrive(a);
             return true;
         }
         if (requestCode == REQ_CAPTURE) {

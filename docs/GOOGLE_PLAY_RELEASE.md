@@ -75,8 +75,12 @@
 - Data safety, 개인정보 처리방침, 광고, 앱 액세스, 타깃 연령층, 콘텐츠 등급
 - `BLUETOOTH_CONNECT`, `POST_NOTIFICATIONS`, `RECEIVE_BOOT_COMPLETED`,
   `ACCESS_COARSE_LOCATION`, `ACCESS_FINE_LOCATION`, `ACCESS_BACKGROUND_LOCATION` 권한의 실제 사용 목적
-- 백그라운드 위치 권한은 앱이 닫힌 블루투스 해제 순간의 주차장 근접 판정과 위치 스냅샷에
-  사용한다. Play Console의 위치 권한 선언·검토 화면에서 핵심 사용자 가치, 앱 내 고지,
+- 백그라운드 위치 권한은 앱이 닫힌 블루투스 해제 순간의 주차장 근접 판정과 위치 스냅샷,
+  그리고 사용자가 켠 경우 **주행 중 위치 추적**(블루투스 연결 동안만 도는 위치 타입 포그라운드
+  서비스 `DriveTracker`)에 사용한다. v3.3부터 `FOREGROUND_SERVICE_LOCATION`을 선언하므로
+  Play Console **앱 콘텐츠 → 포그라운드 서비스 권한**에서 location 타입의 용도(주행 중 주차장 입구
+  좌표 기억)와 시연 영상을 제출해야 한다.
+  Play Console의 위치 권한 선언·검토 화면에서 핵심 사용자 가치, 앱 내 고지,
   짧은 시연 영상을 실제 동작과 일치하게 제출하고 승인 상태를 확인한다
 - Data safety의 "수집"은 앱 내부 처리, 사용자가 직접 실행한 지도 앱 전달·백업 내보내기와 구분해
   최종 정책 질문 및 배포 AAB 동작을 기준으로 답한다

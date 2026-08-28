@@ -12,10 +12,13 @@ final class Notify {
     static final String CHANNEL_PARK_QUIET = "park_reminder_quiet";
     static final String CHANNEL_HABIT = "habit_reminder";
     static final String CHANNEL_TIMER = "parking_timer";
+    /** 주행 중 위치 추적의 진행 중 알림. 소리 없이 한 줄만. */
+    static final String CHANNEL_DRIVE = "drive_tracking";
 
     static final int ID_PARK = 1;
     static final int ID_HABIT = 2;
     static final int ID_TIMER = 3;
+    static final int ID_DRIVE = 4;
 
     private Notify() {
     }
@@ -43,6 +46,8 @@ final class Notify {
                 c.getString(R.string.timer_channel, brand), NotificationManager.IMPORTANCE_HIGH));
         nm.createNotificationChannel(new NotificationChannel(CHANNEL_HABIT,
                 c.getString(R.string.habit_channel, brand), NotificationManager.IMPORTANCE_HIGH));
+        nm.createNotificationChannel(new NotificationChannel(CHANNEL_DRIVE,
+                c.getString(R.string.drive_channel, brand), NotificationManager.IMPORTANCE_LOW));
     }
 
     /** 차량별 주차 알림 태그. 같은 차의 알림은 하나만 떠 있다. */

@@ -10,7 +10,6 @@ import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 import android.location.Location;
-import android.net.Uri;
 import android.os.Build;
 import android.view.Surface;
 import android.view.View;
@@ -70,6 +69,9 @@ class LocationTab {
     private final View card;
     private final View coordinateRow;
     private final TextView coordinates;
+    private final TextView source;
+    private final Button naver;
+    private final Button kakao;
     private final Button openMap;
     private final TextView empty;
     private final Button emptyAction;
@@ -85,6 +87,8 @@ class LocationTab {
     private double carLon;
     private boolean hasCar;
     private boolean carFixReliable;
+    /** 기록에 좌표가 없어 주차장의 등록 위치로 대신 안내하는 중. */
+    private boolean carFromProfile;
 
     /** 내 좌표. 아직 못 잡았으면 hasMe가 false. */
     private double myLat;
@@ -142,6 +146,9 @@ class LocationTab {
         this.arrow = host.findViewById(R.id.locArrow);
         this.coordinateRow = host.findViewById(R.id.locAddressRow);
         this.coordinates = host.findViewById(R.id.locAddress);
+        this.source = host.findViewById(R.id.locSource);
+        this.naver = host.findViewById(R.id.locNaver);
+        this.kakao = host.findViewById(R.id.locKakao);
         this.openMap = host.findViewById(R.id.locOpenMap);
         this.empty = host.findViewById(R.id.locEmpty);
         this.emptyAction = host.findViewById(R.id.locEmptyAction);
@@ -152,7 +159,11 @@ class LocationTab {
 
         coordinateRow.setOnClickListener(v -> copyCoordinates());
         host.findViewById(R.id.locCopy).setOnClickListener(v -> copyCoordinates());
-        openMap.setOnClickListener(v -> openInMapApp());
+        // 길찾기는 깔린 지도 앱이 우리보다 잘한다. URL 스킴이라 키도 SDK도 필요 없다.
+        naver.setOnClickListener(v -> openMap(
+                MapApps.naverWalk(host, carLat, carLon, destinationName())));
+        kakao.setOnClickListener(v -> openMap(MapApps.kakaoWalk(carLat, carLon)));
+        openMap.setOnClickListener(v -> openMap(MapApps.geo(carLat, carLon, destinationName())));
     }
 
     // ---------- 생명주기 ----------
@@ -173,7 +184,7 @@ class LocationTab {
 
     private void startLive() {
         if (live != null || !visible || !Nearby.hasForegroundPermission(host)) return;
-        live = Nearby.requestUpdates(host, LIVE_INTERVAL_MS, fix -> {
+        live = Nearby.requestUpdates(host, LIVE_INTERVAL_MS, 0f, fix -> {
             if (!visible || !hostIsAlive() || fix == null) return;
             applyMyFix(fix);
             renderDistance();
@@ -223,6 +234,26 @@ class LocationTab {
     void render() {
         JSONObject latest = Store.latestRecord(host);
         hasCar = Store.recordHasCoords(latest);
+        carFromProfile = false;
+        if (hasCar) {
+            carLat = Store.recordLat(latest);
+            carLon = Store.recordLon(latest);
+            carFixReliable = storedFixIsReliable(
+                    latest.optLong("t", 0L),
+                    Store.recordLocationTime(latest),
+                    Store.recordLocationAccuracy(latest));
+        } else if (latest != null) {
+            // 기록에 좌표가 없어도(지하라 못 잡았다) 주차장에 등록한 좌표가 있으면 거기까지는
+            // 안내할 수 있다. 우리집·회사 주차장이면 차는 어차피 그 반경 안에 있다.
+            JSONObject profile = Store.profileById(host, latest.optString("p"));
+            if (Store.hasCoords(profile)) {
+                carLat = profile.optDouble("lat");
+                carLon = profile.optDouble("lon");
+                hasCar = true;
+                carFromProfile = true;
+                carFixReliable = false; // 등록 위치는 입구쯤이지 차 자리가 아니다. 화살표는 없다.
+            }
+        }
         if (!hasCar) {
             carFixReliable = false;
             showEmpty(latest);
@@ -230,16 +261,19 @@ class LocationTab {
             stopCompass();
             return;
         }
-        carLat = Store.recordLat(latest);
-        carLon = Store.recordLon(latest);
-        carFixReliable = storedFixIsReliable(
-                latest.optLong("t", 0L),
-                Store.recordLocationTime(latest),
-                Store.recordLocationAccuracy(latest));
 
         card.setVisibility(View.VISIBLE);
         coordinateRow.setVisibility(View.VISIBLE);
-        openMap.setVisibility(View.VISIBLE);
+        source.setVisibility(carFromProfile ? View.VISIBLE : View.GONE);
+        if (carFromProfile) {
+            source.setText(host.getString(R.string.location_source_profile,
+                    Store.recordProfileName(host, latest)));
+        }
+        boolean hasNaver = MapApps.installed(host, MapApps.NAVER);
+        boolean hasKakao = MapApps.installed(host, MapApps.KAKAO);
+        naver.setVisibility(hasNaver ? View.VISIBLE : View.GONE);
+        kakao.setVisibility(hasKakao ? View.VISIBLE : View.GONE);
+        openMap.setVisibility(hasNaver || hasKakao ? View.GONE : View.VISIBLE);
         empty.setVisibility(View.GONE);
         emptyAction.setVisibility(View.GONE);
 
@@ -283,26 +317,27 @@ class LocationTab {
             return;
         }
 
-        String distanceText = meters < 1000
+        distance.setText(meters < 1000
                 ? host.getString(R.string.location_distance_m, (int) Math.round(meters))
-                : host.getString(R.string.location_distance_km, meters / 1000.0);
+                : host.getString(R.string.location_distance_km, meters / 1000.0));
 
         carBearing = (float) bearingTo(myLat, myLon, carLat, carLon);
-        if (!reliable || !isFinite(carBearing)) {
-            distance.setText(distanceText);
-            bearingText.setText(R.string.location_accuracy_warning);
-            arrow.setVisibility(View.GONE);
-            stopCompass();
-            return;
-        }
         String compassName = host.getString(directionName(carBearing));
         int walkMinutes = (int) Math.ceil(meters / WALK_M_PER_MIN);
         // 30분 넘게 걸어갈 거리면 도보 시간은 의미가 없다. 차를 타고 온 곳이거나
         // 아직 집에서 출발도 안 한 상태다.
-        distance.setText(distanceText);
-        bearingText.setText(walkMinutes <= 30
+        String bearing = walkMinutes <= 30
                 ? host.getString(R.string.location_bearing, compassName, walkMinutes)
-                : host.getString(R.string.location_bearing_far, compassName));
+                : host.getString(R.string.location_bearing_far, compassName);
+        // 방향 이름과 도보 시간은 오차가 커도 쓸모가 있다. 오차에 휘둘리는 건 화살표뿐이라
+        // 그것만 숨긴다. 예전에는 경고 한 줄로 방향 정보까지 통째로 가렸다.
+        if (!reliable) {
+            bearingText.setText(host.getString(R.string.location_bearing_unreliable, bearing));
+            arrow.setVisibility(View.GONE);
+            stopCompass();
+            return;
+        }
+        bearingText.setText(bearing);
         arrow.setVisibility(startCompass() ? View.VISIBLE : View.GONE);
     }
 
@@ -317,6 +352,9 @@ class LocationTab {
     private void showEmpty(JSONObject latest) {
         card.setVisibility(View.GONE);
         coordinateRow.setVisibility(View.GONE);
+        source.setVisibility(View.GONE);
+        naver.setVisibility(View.GONE);
+        kakao.setVisibility(View.GONE);
         openMap.setVisibility(View.GONE);
         empty.setVisibility(View.VISIBLE);
 
@@ -365,21 +403,21 @@ class LocationTab {
     // ---------- 바깥으로 ----------
 
     /**
-     * 기기에 설치된 지도 앱으로 넘긴다.
-     *
-     * <p>사용자가 이 버튼을 누른 경우에만 {@code geo:} 인텐트로 선택한 외부 지도 앱에
-     * 좌표가 전달된다. 앱 자체에서 자동으로 네트워크 전송하는 경로는 아니다.
+     * 기기에 설치된 지도 앱으로 넘긴다 — 네이버 지도·카카오맵은 도보 길찾기로, 둘 다 없으면
+     * {@code geo:} 핀으로. 사용자가 버튼을 누른 그 순간에만 그 앱에 좌표가 전달된다.
+     * 앱 자체에서 자동으로 네트워크 전송하는 경로는 아니다.
      */
-    private void openInMapApp() {
-        String zone = Store.latestZone(host);
-        String label = Uri.encode(zone == null ? host.getString(R.string.location_to_car) : zone);
-        Uri geo = Uri.parse(String.format(Locale.US,
-                "geo:%f,%f?q=%f,%f(%s)", carLat, carLon, carLat, carLon, label));
-        try {
-            host.startActivity(new Intent(Intent.ACTION_VIEW, geo));
-        } catch (Exception e) {
+    private void openMap(Intent intent) {
+        if (!MapApps.open(host, intent)) {
             Toast.makeText(host, R.string.location_no_map_app, Toast.LENGTH_SHORT).show();
         }
+    }
+
+    /** 지도 앱에 찍힐 목적지 이름. 초안이면 "내 차까지". */
+    private String destinationName() {
+        JSONObject latest = Store.latestRecord(host);
+        return latest == null || Store.isDraft(latest)
+                ? host.getString(R.string.location_to_car) : Store.zoneOf(host, latest);
     }
 
     // ---------- 방위 계산 ----------

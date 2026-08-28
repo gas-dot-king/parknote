@@ -150,8 +150,13 @@ class ReadyCheck {
                 exempt ? null : Action.BATTERY);
     }
 
+    /** 위치 권한이 필요한 기능(위치로 알림 조절, 주행 중 위치 추적)을 하나라도 켰는가. */
+    private static boolean locationUsed(Context c) {
+        return Store.locationFilterOn(c) || Store.driveTrackingOn(c);
+    }
+
     private static Item locationForeground(Context c) {
-        if (!Store.locationFilterOn(c)) {
+        if (!locationUsed(c)) {
             return new Item(R.string.ready_location, State.NOT_USED,
                     c.getString(R.string.ready_location_off), Action.LOCATION);
         }
@@ -163,7 +168,7 @@ class ReadyCheck {
     }
 
     private static Item locationBackground(Context c) {
-        if (!Store.locationFilterOn(c)) {
+        if (!locationUsed(c)) {
             return new Item(R.string.ready_location_always, State.NOT_USED,
                     c.getString(R.string.ready_location_off), Action.LOCATION);
         }

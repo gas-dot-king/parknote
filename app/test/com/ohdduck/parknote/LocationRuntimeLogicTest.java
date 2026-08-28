@@ -51,6 +51,17 @@ public class LocationRuntimeLogicTest {
     }
 
     @Test
+    public void score_최신보다_정확한_좌표가_이긴다() {
+        // 5초 전 기지국 좌표(±800m)보다 40초 전 GPS 좌표(±10m)가 차 위치로는 낫다.
+        assertTrue(Nearby.score(10f, 40_000L) < Nearby.score(800f, 5_000L));
+        // 같은 오차면 최신이 이긴다
+        assertTrue(Nearby.score(20f, 5_000L) < Nearby.score(20f, 60_000L));
+        // 오차를 모르면 기지국 수준으로 본다, 미래 시각은 0초로 친다
+        assertEquals(500.0, Nearby.score(-1f, 0L), 0.001);
+        assertEquals(10.0, Nearby.score(10f, -5_000L), 0.001);
+    }
+
+    @Test
     public void displayRotation_화면위쪽에맞춰센서축변환() {
         assertAxes(Surface.ROTATION_0, SensorManager.AXIS_X, SensorManager.AXIS_Y);
         assertAxes(Surface.ROTATION_90,

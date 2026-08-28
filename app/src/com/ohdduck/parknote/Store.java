@@ -78,6 +78,7 @@ class Store {
     static final String PREF_HABITS = "habits";
     static final String PREF_ONBOARDED = "onboarded";
     static final String PREF_LOCATION_FILTER = "location_filter";
+    static final String PREF_DRIVE_TRACKING = "drive_tracking";
     /** BtReceiver가 차량별로 본 마지막 연결/해제. 홈 감지 카드의 표시용 상태다. */
     private static final String PREF_BT_STATE = "bt_state";
 
@@ -432,6 +433,16 @@ class Store {
         prefs(c).edit().putBoolean(PREF_LOCATION_FILTER, on).apply();
     }
 
+    /** 주행 중 위치 추적(DriveTracker). 기본 꺼짐 — 주행 중 알림이 떠 있고 측위가 도는 기능이라 사용자가 켠다. */
+    static boolean driveTrackingOn(Context c) {
+        Migration.ensure(c);
+        return prefs(c).getBoolean(PREF_DRIVE_TRACKING, false);
+    }
+
+    static void setDriveTracking(Context c, boolean on) {
+        prefs(c).edit().putBoolean(PREF_DRIVE_TRACKING, on).apply();
+    }
+
     static boolean hasCoords(JSONObject profile) {
         return profile != null && profile.has("lat") && profile.has("lon");
     }
@@ -534,7 +545,8 @@ class Store {
                     .put(PREF_HISTORY, p.getString(PREF_HISTORY, "[]"))
                     .put(PREF_HABITS, p.getString(PREF_HABITS, "[]"))
                     .put(PREF_ONBOARDED, p.getBoolean(PREF_ONBOARDED, true))
-                    .put(PREF_LOCATION_FILTER, p.getBoolean(PREF_LOCATION_FILTER, false));
+                    .put(PREF_LOCATION_FILTER, p.getBoolean(PREF_LOCATION_FILTER, false))
+                    .put(PREF_DRIVE_TRACKING, p.getBoolean(PREF_DRIVE_TRACKING, false));
         } catch (JSONException e) {
             throw new RuntimeException(e);
         }
@@ -552,9 +564,13 @@ class Store {
         boolean locationFilter = data.has(PREF_LOCATION_FILTER)
                 ? data.optBoolean(PREF_LOCATION_FILTER, false)
                 : locationFilterOn(c);
+        boolean driveTracking = data.has(PREF_DRIVE_TRACKING)
+                ? data.optBoolean(PREF_DRIVE_TRACKING, false)
+                : driveTrackingOn(c);
         prefs(c).edit()
                 .putInt(PREF_SCHEMA, data.optInt(PREF_SCHEMA, SCHEMA_VERSION))
                 .putBoolean(PREF_LOCATION_FILTER, locationFilter)
+                .putBoolean(PREF_DRIVE_TRACKING, driveTracking)
                 .putString(PREF_PROFILES, data.optString(PREF_PROFILES, "[]"))
                 .putString(PREF_ACTIVE_PROFILE, data.optString(PREF_ACTIVE_PROFILE, ""))
                 .putString(PREF_VEHICLES, data.optString(PREF_VEHICLES, "[]"))
@@ -1268,20 +1284,19 @@ class Store {
     }
 
     /**
-     * 끊긴 직후 단발 측위로 더 나은 좌표를 잡았을 때. 좌표가 없었거나, 새 좌표가 더 정확하거나,
-     * 저장된 좌표가 새 좌표보다 1분 넘게 낡았으면 바꾼다.
+     * 끊긴 직후 단발 측위로 좌표를 잡았을 때. 저장된 좌표보다 쓸모({@link Nearby#score})가
+     * 있을 때만 바꾼다 — 지하에서 기지국으로 잡힌 흐린 새 좌표가 입구의 정확한 좌표를 밀어내면 안 된다.
      */
     static void improveLocation(Context c, String recordId, Location fix) {
         if (!Nearby.isValid(fix)) return;
         JSONArray all = history(c);
         JSONObject entry = Json.byId(all, recordId);
         if (entry == null) return;
-        float stored = recordLocationAccuracy(entry);
-        float fresh = Nearby.accuracyOf(fix);
-        boolean better = !recordHasCoords(entry)
-                || (fresh >= 0 && (stored < 0 || fresh <= stored))
-                || fix.getTime() - recordLocationTime(entry) > 60_000L;
-        if (!better) return;
+        if (recordHasCoords(entry)) {
+            double stored = Nearby.score(recordLocationAccuracy(entry),
+                    System.currentTimeMillis() - recordLocationTime(entry));
+            if (Nearby.score(fix) >= stored) return;
+        }
         try {
             putRecordLocation(entry, fix);
         } catch (JSONException e) {

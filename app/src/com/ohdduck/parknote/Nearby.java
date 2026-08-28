@@ -161,13 +161,32 @@ class Nearby {
             // NETWORK 좌표까지 통째로 버리게 된다.
             try {
                 Location candidate = lm.getLastKnownLocation(provider);
-                if (!isValid(candidate)) continue;
-                if (best == null || candidate.getTime() > best.getTime()) best = candidate;
+                if (!isValid(candidate) || !isFresh(candidate)) continue;
+                if (best == null || score(candidate) < score(best)) best = candidate;
             } catch (SecurityException | IllegalArgumentException ignored) {
                 // 이 공급자만 건너뛴다
             }
         }
-        return best != null && isFresh(best) ? best : null;
+        return best;
+    }
+
+    /** 오차를 모르는 좌표에 매기는 값(m). 기지국 좌표 수준으로 본다. */
+    private static final float UNKNOWN_ACCURACY_M = 500f;
+
+    /**
+     * 좌표의 쓸모. 낮을수록 좋다. 오차 1m를 1초와 같게 쳐서 더한다.
+     *
+     * <p>최신이 항상 이기지 않는다 — 5초 전 네트워크 좌표(±800m)보다 40초 전 GPS 좌표(±10m)가
+     * 차 위치로는 낫다. 예전에는 무조건 최신 것을 골라서, 지하 진입 직후 기지국으로 잡힌
+     * 흐린 좌표가 입구의 정확한 좌표를 밀어냈다.
+     */
+    static double score(float accuracyM, long ageMs) {
+        double accuracy = accuracyM < 0 ? UNKNOWN_ACCURACY_M : accuracyM;
+        return accuracy + Math.max(0L, ageMs) / 1000.0;
+    }
+
+    static double score(Location fix) {
+        return score(accuracyOf(fix), System.currentTimeMillis() - fix.getTime());
     }
 
     /**
@@ -218,14 +237,22 @@ class Nearby {
     }
 
     /**
-     * 연속 측위. 화면이 보이는 동안만 걸고 {@link FixRequest#cancel}로 반드시 푼다.
+     * 연속 측위. 화면이 보이거나 주행 중인 동안만 걸고 {@link FixRequest#cancel}로 반드시 푼다.
      * 공급자가 캐시를 먼저 돌려주면 그것도 그대로 전달한다 — 화면에 뭐라도 바로 보이는 편이 낫다.
+     *
+     * @param minDistanceM 이만큼 움직여야 다음 좌표를 준다. 신호 대기 중 같은 자리를 반복해 받지 않게.
      */
-    static FixRequest requestUpdates(Context c, long intervalMs, FixCallback cb) {
-        return start(c, cb, false, intervalMs);
+    static FixRequest requestUpdates(Context c, long intervalMs, float minDistanceM,
+                                     FixCallback cb) {
+        return start(c, cb, false, intervalMs, minDistanceM);
     }
 
     private static FixRequest start(Context c, FixCallback cb, boolean oneShot, long millis) {
+        return start(c, cb, oneShot, millis, 0f);
+    }
+
+    private static FixRequest start(Context c, FixCallback cb, boolean oneShot, long millis,
+                                    float minDistanceM) {
         LocationManager lm = (LocationManager) c.getSystemService(Context.LOCATION_SERVICE);
         if (lm == null || !hasForegroundPermission(c)) {
             cb.onFix(null);
@@ -236,7 +263,7 @@ class Nearby {
             cb.onFix(null);
             return DONE;
         }
-        Request request = new Request(lm, providers, cb, oneShot, millis);
+        Request request = new Request(lm, providers, cb, oneShot, millis, minDistanceM);
         request.start();
         return request;
     }
@@ -278,18 +305,20 @@ class Nearby {
         private final boolean oneShot;
         /** 단발이면 타임아웃(ms), 연속이면 갱신 간격(ms). */
         private final long millis;
+        private final float minDistanceM;
         private final long requestedAtElapsedNanos;
         private final Handler main = new Handler(Looper.getMainLooper());
         private final AtomicBoolean finished = new AtomicBoolean();
         private final Runnable timeout = () -> finish(null, true);
 
         private Request(LocationManager manager, List<String> providers,
-                        FixCallback callback, boolean oneShot, long millis) {
+                        FixCallback callback, boolean oneShot, long millis, float minDistanceM) {
             this.manager = manager;
             this.providers = providers;
             this.callback = callback;
             this.oneShot = oneShot;
             this.millis = millis;
+            this.minDistanceM = minDistanceM;
             this.requestedAtElapsedNanos = SystemClock.elapsedRealtimeNanos();
         }
 
@@ -297,8 +326,8 @@ class Nearby {
             boolean listening = false;
             for (String provider : providers) {
                 try {
-                    manager.requestLocationUpdates(
-                            provider, oneShot ? 0L : millis, 0f, this, Looper.getMainLooper());
+                    manager.requestLocationUpdates(provider, oneShot ? 0L : millis,
+                            oneShot ? 0f : minDistanceM, this, Looper.getMainLooper());
                     listening = true;
                 } catch (SecurityException | IllegalArgumentException ignored) {
                     // 이 공급자만 건너뛴다. 하나라도 걸렸으면 계속 기다린다.

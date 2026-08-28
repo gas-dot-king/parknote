@@ -11,6 +11,7 @@
 -keep class com.ohdduck.parknote.ReminderReceiver { *; }
 -keep class com.ohdduck.parknote.ParkingTimerReceiver { *; }
 -keep class com.ohdduck.parknote.ParkTileService { *; }
+-keep class com.ohdduck.parknote.DriveTracker { *; }
 
 # 개인용 앱 — 난독화는 이득이 없고 스택트레이스만 읽기 어려워짐
 -dontobfuscate

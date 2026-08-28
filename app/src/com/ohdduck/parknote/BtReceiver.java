@@ -68,6 +68,11 @@ public class BtReceiver extends BroadcastReceiver {
             // 차에 탔다. 방금 띄운 알림은 오탐이거나 이미 지난 일이고, 주차는 끝났다.
             Notify.cancelPark(ctx, vehicleId);
             Store.endParking(ctx, vehicleId, now);
+            // 주행이 시작됐다. 켜 뒀으면 지하 진입 직전까지의 좌표를 받아 둔다.
+            if (Store.driveTrackingOn(ctx) && Nearby.hasPermission(ctx)) {
+                DriveTracker.start(ctx,
+                        vehicle.optString("n", ctx.getString(R.string.vehicle_default_name)));
+            }
             return;
         }
 
@@ -75,6 +80,13 @@ public class BtReceiver extends BroadcastReceiver {
         // 어느 경로로 구역을 적어도 "언제 어디쯤에서 내렸는지"는 남는다.
         boolean canLocate = Nearby.hasPermission(ctx);
         Location fix = canLocate ? Nearby.lastFix(ctx) : null;
+        // 주행 중 추적이 남긴 마지막 좋은 좌표 = 지하 입구. 캐시가 없거나(30분 넘게 지하에
+        // 있었다) 캐시가 기지국 좌표라 더 흐리면 이쪽을 쓴다.
+        Location tracked = DriveTracker.takeLastFix();
+        DriveTracker.stop(ctx);
+        if (tracked != null && (fix == null || Nearby.score(tracked) < Nearby.score(fix))) {
+            fix = tracked;
+        }
         Nearby.Where where = Nearby.locate(ctx);
         String profileId = where.profile == null
                 ? Store.activeProfileId(ctx) : where.profile.optString("id");

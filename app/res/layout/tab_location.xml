@@ -9,6 +9,7 @@
   내 위치는 이 탭이 보이는 동안만 갱신된다(LocationTab). 따로 "다시 잡기"가 필요 없다.
 -->
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:id="@+id/tabLocation"
     style="@style/TabScroll">
 
@@ -130,20 +131,77 @@
                 android:textSize="13sp" />
         </LinearLayout>
 
+        <!-- 기록에 좌표가 없어 주차장 등록 위치로 대신 안내할 때만 보인다. -->
+        <TextView
+            android:id="@+id/locSource"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="@dimen/gutter"
+            android:layout_marginRight="@dimen/gutter"
+            android:layout_marginTop="6dp"
+            android:fontFamily="sans-serif"
+            android:textColor="@color/accent_text"
+            android:textSize="12sp"
+            android:visibility="gone" />
+
+        <!--
+          도보 길찾기는 깔린 지도 앱에 넘긴다 (MapApps, URL 스킴). 설치된 앱의 버튼만 보이고,
+          둘 다 없으면 아래 geo: 버튼이 대신 보인다. 홈 격자 칸과 같은 면 버튼이라 lint의
+          버튼 바 규칙(테두리 없는 스타일)은 맞지 않는다.
+        -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:orientation="horizontal"
+            tools:ignore="ButtonStyle">
+
+            <Button
+                android:id="@+id/locNaver"
+                android:layout_width="0dp"
+                android:layout_height="@dimen/touch_min"
+                android:layout_margin="@dimen/gutter"
+                android:layout_weight="1"
+                android:background="@drawable/bg_button_active"
+                android:fontFamily="sans-serif-medium"
+                android:stateListAnimator="@null"
+                android:text="@string/location_naver"
+                android:textAllCaps="false"
+                android:textColor="@color/on_accent"
+                android:textSize="14sp"
+                android:visibility="gone" />
+
+            <Button
+                android:id="@+id/locKakao"
+                android:layout_width="0dp"
+                android:layout_height="@dimen/touch_min"
+                android:layout_margin="@dimen/gutter"
+                android:layout_weight="1"
+                android:background="@drawable/bg_button_active"
+                android:fontFamily="sans-serif-medium"
+                android:stateListAnimator="@null"
+                android:text="@string/location_kakao"
+                android:textAllCaps="false"
+                android:textColor="@color/on_accent"
+                android:textSize="14sp"
+                android:visibility="gone" />
+        </LinearLayout>
+
         <Button
             android:id="@+id/locOpenMap"
             android:layout_width="match_parent"
             android:layout_height="@dimen/touch_min"
             android:layout_marginLeft="@dimen/gutter"
             android:layout_marginRight="@dimen/gutter"
-            android:layout_marginTop="10dp"
+            android:layout_marginTop="2dp"
             android:background="@drawable/bg_button_active"
             android:fontFamily="sans-serif-medium"
             android:stateListAnimator="@null"
             android:text="@string/location_open_map"
             android:textAllCaps="false"
             android:textColor="@color/on_accent"
-            android:textSize="15sp" />
+            android:textSize="15sp"
+            android:visibility="gone" />
 
         <!--
           좌표가 없을 때 이 자리를 대신 채운다. 이유가 세 가지라(기록 없음 /

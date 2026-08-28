@@ -292,6 +292,11 @@ class SettingsTab {
                 host.getString(R.string.settings_manage_vehicle),
                 vehicleSubtitle(),
                 v -> VehicleDialogs.showCurrentOptions(host, screen)));
+        vehicleGroup.addView(entry(
+                host.getString(R.string.settings_drive_tracking, host.getString(
+                        Store.driveTrackingOn(host) ? R.string.state_on : R.string.state_off)),
+                host.getString(R.string.settings_drive_tracking_sub),
+                v -> LocationFilterDialogs.showDriveTracking(host)));
 
         dataGroup.removeAllViews();
         dataGroup.addView(entry(
