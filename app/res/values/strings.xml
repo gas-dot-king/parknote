@@ -138,10 +138,21 @@
     <string name="record_label_zone">주차 위치</string>
     <string name="record_label_time">주차 시각</string>
     <string name="record_label_memo">메모 (선택)</string>
-    <string name="record_zone_hint">예: B2-A</string>
+    <string name="record_zone_hint">예: B2-A (비우면 구역 미입력)</string>
     <string name="record_memo_hint">예: 엘리베이터 옆, F기둥</string>
-    <string name="record_zone_required">주차 위치를 입력해 주세요</string>
     <string name="record_memo_too_long">메모는 %1$d자까지 입력할 수 있어요</string>
+    <string name="record_label_photo">사진</string>
+    <string name="photo_none">없음 · 눌러서 찍기</string>
+    <string name="photo_exists">있음 · 보기 / 다시 찍기 / 삭제</string>
+    <string name="photo_view">보기</string>
+    <string name="photo_retake">다시 찍기</string>
+    <string name="photo_delete">사진 삭제</string>
+    <string name="photo_saved">사진을 남겼어요</string>
+    <string name="photo_failed">사진을 저장하지 못했어요</string>
+    <string name="photo_no_camera">카메라 앱을 찾을 수 없어요</string>
+    <string name="voice_button">음성으로 메모 추가</string>
+    <string name="voice_prompt">어디에 댔는지 말해 주세요</string>
+    <string name="voice_unavailable">이 기기에서는 음성 인식을 쓸 수 없어요</string>
     <string name="record_save_error">기록을 저장하지 못했어요</string>
     <string name="record_updated">주차 기록을 수정했어요</string>
     <string name="record_delete_confirm">이 주차 기록을 삭제할까요?</string>
@@ -227,7 +238,7 @@
 
     <!-- ── 백업 · 복원 ────────────────────────────────────────────────────── -->
     <string name="backup_title">백업 · 복원</string>
-    <string name="backup_message">기록은 이 기기 안에만 있어요. 앱을 지웠다 깔거나 폰을 바꾸면 사라지니, 가끔 파일로 내보내 두세요.</string>
+    <string name="backup_message">기록과 주차 사진은 이 기기 안에만 있어요. 앱을 지웠다 깔거나 폰을 바꾸면 사라지니, 가끔 파일(zip)로 내보내 두세요.</string>
     <string name="backup_export">파일로 내보내기</string>
     <string name="backup_import">백업에서 가져오기</string>
     <string name="backup_no_saver">파일을 저장할 앱을 찾지 못했어요</string>
@@ -238,7 +249,7 @@
     <string name="backup_imported">백업을 가져왔어요</string>
     <string name="backup_import_action">가져오기</string>
     <string name="backup_import_confirm">%1$s\n\n지금 이 기기에 있는 주차 기록·주차장·차량·체크가 모두 사라지고 백업 내용으로 바뀝니다. 예약된 알림도 다시 맞춰져요.</string>
-    <string name="backup_summary">%1$s에 저장\n주차장 %2$d개 · 차량 %3$d대 · 주차 기록 %4$d개 · 체크 %5$d개</string>
+    <string name="backup_summary">%1$s에 저장\n주차장 %2$d개 · 차량 %3$d대 · 주차 기록 %4$d개 · 체크 %5$d개 · 사진 %6$d장</string>
     <string name="backup_saved_unknown">시각 미상</string>
 
     <string name="backup_err_build">백업 파일을 만들지 못했어요</string>
@@ -292,6 +303,19 @@
     <string name="bt_notification_title">%1$s · %2$s</string>
     <string name="bt_notification_known">%1$s에 댄 곳을 남겨둘까요?</string>
     <string name="bt_notification_elsewhere">등록한 주차장이 아니에요. 남겨둘까요?</string>
+    <!-- 알림의 직접 입력 칸. 키보드의 마이크로 말해도 된다. -->
+    <string name="bt_reply_label">직접 입력</string>
+    <string name="bt_reply_hint">예: B2-A, 롯데몰 3층 F기둥</string>
+
+    <!-- ── 잠금 화면 위 빠른 입력 ─────────────────────────────────────────── -->
+    <string name="quick_subtitle">%1$s · %2$s</string>
+    <string name="quick_time">%1$s에 내렸어요 (%2$s)</string>
+    <string name="quick_photo">사진 찍기</string>
+    <string name="quick_voice">음성으로 메모</string>
+    <string name="quick_later">나중에</string>
+    <string name="quick_memo">메모: %1$s</string>
+    <string name="quick_memo_saved">메모를 남겼어요: %1$s</string>
+    <string name="quick_record_gone">이 주차 기록이 이제 없어요</string>
 
     <!-- ── 위젯 ───────────────────────────────────────────────────────────── -->
     <string name="widget_status_empty">%1$s · 아직 없어요 · %2$s · %3$s</string>
@@ -352,7 +376,17 @@
     <string name="hero_saved_label">주차 완료</string>
     <!-- 차량 블루투스가 다시 붙었다 = 시동이 켜졌다. 차는 더 이상 그 자리에 없다. -->
     <string name="hero_moving_label">시동 켜짐 · 마지막 주차</string>
+    <string name="hero_ended_label">출차함 · 마지막 주차</string>
+    <!-- 초안: 차에서 내린 시각·좌표만 있고 구역은 아직 없는 기록. 홈의 격자를 누르면 채워진다. -->
+    <string name="hero_draft_label">차에서 내렸어요 · 아래에서 구역을 눌러 주세요</string>
     <string name="hero_empty_label">아직 기록이 없어요</string>
+    <string name="zone_unset">구역 미입력</string>
+    <!-- 내린 시각 ~ 출차 시각 · 주차 시간 -->
+    <string name="status_time_ended">%1$s ~ %2$s · %3$s 주차</string>
+    <string name="parked_for">%1$s 주차</string>
+    <string name="photo_action">사진</string>
+    <string name="cd_hero_photo">주차 사진 크게 보기</string>
+    <string name="cd_hero_photo_action">지금 주차한 곳 사진 찍기</string>
     <string name="history_see_all">전체 보기</string>
 
     <string name="detect_title">감지 상태</string>

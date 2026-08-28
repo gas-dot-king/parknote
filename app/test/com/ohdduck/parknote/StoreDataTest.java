@@ -205,6 +205,91 @@ public class StoreDataTest {
         assertEquals(1_000L, next.getJSONObject(1).getLong("t"));
     }
 
+    // ---------- 구역 순위 ----------
+
+    @Test
+    public void rankZones_자주_댄_구역이_먼저_같은_횟수면_최근_것이_먼저() throws JSONException {
+        JSONArray h = new JSONArray();
+        long t = 100;
+        h.put(record("home", "car", t--).put("z", "B1-A")); // 최근 1회
+        h.put(record("home", "car", t--).put("z", "B2-A"));
+        h.put(record("home", "car", t--).put("z", "B3-B"));
+        h.put(record("home", "car", t--).put("z", "B2-A"));
+        h.put(record("home", "car", t--).put("z", "B3-B"));
+        h.put(record("home", "car", t--).put("z", "B2-A")); // 3회
+        String[] grid = {"B1-A", "B1-B", "B2-A", "B2-B", "B3-A", "B3-B"};
+
+        assertArrayEquals(new String[]{"B2-A", "B3-B", "B1-A"}, Store.rankZones(h, grid, 3, null));
+        // 모자라면 격자 순서로 채운다
+        assertArrayEquals(new String[]{"B2-A", "B3-B", "B1-A", "B1-B", "B2-B"},
+                Store.rankZones(h, grid, 5, null));
+    }
+
+    @Test
+    public void rankZones_초안과_허용_밖_구역은_세지_않는다() throws JSONException {
+        JSONArray h = new JSONArray();
+        JSONObject draft = record("home", "car", 3L);
+        draft.remove("z");
+        h.put(draft);                                           // 초안
+        h.put(record("home", "car", 2L).put("z", "롯데몰 B2")); // 직접 입력
+        h.put(record("home", "car", 1L).put("z", "B1-B"));
+        String[] grid = {"B1-A", "B1-B"};
+        java.util.Set<String> allowed = new java.util.HashSet<>(java.util.Arrays.asList(grid));
+
+        assertArrayEquals(new String[]{"B1-B", "B1-A"}, Store.rankZones(h, grid, 2, allowed));
+        assertArrayEquals(new String[]{"롯데몰 B2", "B1-B"}, Store.rankZones(h, grid, 2, null));
+    }
+
+    // ---------- 블루투스 재연결 = 주차 끝 ----------
+
+    @Test
+    public void closeParking_빈_초안이_3분_안에_재연결되면_오탐으로_지운다() throws JSONException {
+        JSONObject draft = record("home", "car", 10_000L);
+        draft.remove("z");
+        JSONArray all = new JSONArray().put(draft);
+
+        JSONObject touched = Store.closeParking(all, "car", 10_000L + Store.FLAP_MS - 1);
+        assertEquals(draft.getString("id"), touched.getString("id"));
+        assertEquals(0, all.length());
+    }
+
+    @Test
+    public void closeParking_사진이나_메모가_있는_초안은_지우지_않는다() throws JSONException {
+        JSONObject draft = record("home", "car", 10_000L);
+        draft.remove("z");
+        draft.put("ph", "x.jpg");
+        JSONArray all = new JSONArray().put(draft);
+
+        Store.closeParking(all, "car", 11_000L);
+        assertEquals(1, all.length());
+        assertEquals(11_000L, draft.getLong("e"));
+    }
+
+    @Test
+    public void closeParking_구역이_있으면_출차_시각을_적고_이미_닫힌_기록은_건드리지_않는다()
+            throws JSONException {
+        JSONObject parked = record("home", "car", 10_000L).put("due", 99_000L);
+        JSONObject other = record("home", "van", 20_000L); // 다른 차량은 무관
+        JSONArray all = new JSONArray().put(other).put(parked);
+
+        JSONObject touched = Store.closeParking(all, "car", 50_000L);
+        assertEquals(parked.getString("id"), touched.getString("id"));
+        assertEquals(50_000L, parked.getLong("e"));
+        assertEquals(99_000L, parked.getLong("due")); // 타이머 해제는 호출한 쪽이 한다
+        assertFalse(other.has("e"));
+
+        assertNull(Store.closeParking(all, "car", 60_000L)); // 두 번째 재연결은 무시
+        assertEquals(50_000L, parked.getLong("e"));
+    }
+
+    @Test
+    public void isDraft_는_구역이_비었을_때만() throws JSONException {
+        assertTrue(Store.isDraft(new JSONObject()));
+        assertTrue(Store.isDraft(new JSONObject().put("z", "  ")));
+        assertFalse(Store.isDraft(new JSONObject().put("z", "B1-A")));
+        assertFalse(Store.isDraft(null));
+    }
+
     // ---------- 도우미 ----------
 
     private static int recordSeq;

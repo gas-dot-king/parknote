@@ -117,10 +117,14 @@ class BackupFlow {
                 .setMessage(a.getString(R.string.backup_import_confirm, summary(a, loaded)))
                 .setPositiveButton(R.string.backup_import_action, (d, w) -> {
                     Store.importData(a, loaded.data);
+                    Photos.commitStaged(a);
                     host.refresh(true);
                     Toast.makeText(a, R.string.backup_imported, Toast.LENGTH_SHORT).show();
                 })
                 .setNegativeButton(R.string.action_cancel, null)
+                // 취소든 바깥 탭이든 확정하지 않았으면 꺼내 둔 사진을 버린다.
+                // 확정한 뒤에는 스테이징이 이미 비어 있어 아무 일도 없다.
+                .setOnDismissListener(d -> Photos.discardStaged(a))
                 .show();
     }
 
@@ -130,7 +134,8 @@ class BackupFlow {
                 ? Fmt.full(loaded.savedAt)
                 : a.getString(R.string.backup_saved_unknown);
         return a.getString(R.string.backup_summary, when,
-                loaded.counts[0], loaded.counts[1], loaded.counts[2], loaded.counts[3]);
+                loaded.counts[0], loaded.counts[1], loaded.counts[2], loaded.counts[3],
+                loaded.photos);
     }
 
     /** 파일 I/O가 끝났을 때 화면이 이미 닫혔으면 다이얼로그를 띄우면 안 된다. */

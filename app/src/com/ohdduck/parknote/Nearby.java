@@ -184,6 +184,17 @@ class Nearby {
         return wall >= 0 && wall <= MAX_FIX_AGE_MS && elapsed >= 0 && elapsed <= MAX_FIX_AGE_MS;
     }
 
+    /**
+     * 차에서 내린 순간 잡아 둔 캐시가 없거나(내비를 안 켰다), 1분 넘게 낡았거나, 오차가
+     * 50m를 넘으면 단발 측위로 더 나은 좌표를 시도할 가치가 있다.
+     */
+    static boolean wantsBetterFix(Location fix) {
+        if (fix == null) return true;
+        float accuracy = accuracyOf(fix);
+        return System.currentTimeMillis() - fix.getTime() > 60_000L
+                || accuracy < 0 || accuracy > 50f;
+    }
+
     // ---------- 측위 ----------
 
     interface FixCallback {

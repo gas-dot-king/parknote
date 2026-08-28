@@ -16,9 +16,11 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -32,8 +34,20 @@ class Store {
     static final String LEGACY_PROFILE_ID = "legacy-default-profile";
     static final String LEGACY_VEHICLE_ID = "legacy-default-vehicle";
 
-    /** 저장 구조 버전. 올릴 때는 Backup.FORMAT도 함께 볼 것 — validate가 이 값보다 새 백업을 거부한다. */
-    static final int SCHEMA_VERSION = 5;
+    /**
+     * 저장 구조 버전. 올릴 때는 Backup.FORMAT도 함께 볼 것 — validate가 이 값보다 새 백업을 거부한다.
+     *
+     * <p>v6: 기록에 구역이 없을 수 있고(초안), 출차 시각(e)과 사진(ph)이 붙는다.
+     * 구조 변환은 없지만 v5 앱이 이 기록을 "?" 구역으로 읽게 두지 않으려고 올렸다.
+     */
+    static final int SCHEMA_VERSION = 6;
+
+    /**
+     * 끊겼다 이만큼 안에 다시 붙으면 잠깐의 신호 끊김으로 본다. 그 사이 만들어진
+     * 빈 초안(구역·사진·메모 없음)은 지운다.
+     */
+    static final long FLAP_MS = 3 * 60 * 1000L;
+    static final int MAX_MEMO_LENGTH = 200;
     static final int MAX_PROFILES = 6;
     static final int MAX_VEHICLES = 3;
     /** 격자 한 변의 상한. 칸이 너무 많으면 한 화면에서 고르는 이점이 사라진다. */
@@ -167,13 +181,28 @@ class Store {
         return defaults.clone();
     }
 
+    /** 프로필의 층 목록. 비어 있으면 1차원(층 없이 구역 버튼만) 구성이다. */
+    static String[] rows(JSONObject profile) {
+        return profile == null ? DEFAULT_ROWS.clone() : Json.strings(profile.optJSONArray("rows"));
+    }
+
+    static String[] cols(JSONObject profile) {
+        if (profile == null) return DEFAULT_COLS.clone();
+        String[] cols = Json.strings(profile.optJSONArray("cols"));
+        return cols.length == 0 ? DEFAULT_COLS.clone() : cols;
+    }
+
+    static String sep(JSONObject profile) {
+        return profile == null ? DEFAULT_SEP : profile.optString("sep", DEFAULT_SEP);
+    }
+
+    static String[] etc(JSONObject profile) {
+        return zonesOf(profile, "etc", NO_ZONES, true);
+    }
+
     /** 프로필의 격자를 편 구역 이름 배열. 위젯·알림·화면이 모두 이 결과를 쓴다. */
     private static String[] gridZones(JSONObject profile) {
-        if (profile == null) return flatten(DEFAULT_ROWS, DEFAULT_COLS, DEFAULT_SEP);
-        String[] cols = Json.strings(profile.optJSONArray("cols"));
-        if (cols.length == 0) return flatten(DEFAULT_ROWS, DEFAULT_COLS, DEFAULT_SEP);
-        return flatten(Json.strings(profile.optJSONArray("rows")), cols,
-                profile.optString("sep", DEFAULT_SEP));
+        return flatten(rows(profile), cols(profile), sep(profile));
     }
 
     // ---------- 주차장 프로필 ----------
@@ -301,29 +330,23 @@ class Store {
     }
 
     static String[] etcZones(Context c) {
-        return zonesOf(activeProfile(c), "etc", NO_ZONES, true);
+        return etc(activeProfile(c));
     }
 
     static String[] mainZonesForProfile(Context c, String profileId) {
         return gridZones(profileById(c, profileId));
     }
 
-    /** 현재 주차장의 층 목록. 비어 있으면 1차원(층 없이 구역 버튼만) 구성이다. */
     static String[] activeRows(Context c) {
-        JSONObject profile = activeProfile(c);
-        return profile == null ? DEFAULT_ROWS.clone() : Json.strings(profile.optJSONArray("rows"));
+        return rows(activeProfile(c));
     }
 
     static String[] activeCols(Context c) {
-        JSONObject profile = activeProfile(c);
-        if (profile == null) return DEFAULT_COLS.clone();
-        String[] cols = Json.strings(profile.optJSONArray("cols"));
-        return cols.length == 0 ? DEFAULT_COLS.clone() : cols;
+        return cols(activeProfile(c));
     }
 
     static String activeSep(Context c) {
-        JSONObject profile = activeProfile(c);
-        return profile == null ? DEFAULT_SEP : profile.optString("sep", DEFAULT_SEP);
+        return sep(activeProfile(c));
     }
 
     /**
@@ -896,13 +919,55 @@ class Store {
     }
 
     // ---------- 주차 기록 ----------
-    // {id, c: 차량ID, cn: 차량명, p: 주차장ID, pn: 주차장명, z: 구역, t: 시각, m?: 메모,
-    //  due?: 출차 알림 시각, lat?/lon?/loc_t?/loc_acc?: 저장 시점 좌표}
+    // {id, c: 차량ID, cn: 차량명, p: 주차장ID, pn: 주차장명, z?: 구역, t: 내린 시각,
+    //  e?: 출차(블루투스 재연결) 시각, m?: 메모, ph?: 사진 파일 이름, due?: 출차 알림 시각,
+    //  lat?/lon?/loc_t?/loc_acc?: 내린 시점 좌표}
+    //
+    // z가 없는 기록은 "초안"이다 — 차에서 내렸다는 사실(시각·좌표)만 있고 어디에 댔는지는
+    // 아직 안 적은 상태. 끊긴 순간 폰이 확실히 아는 두 가지는 알림을 무시해도 남아야 한다.
 
     /** 전체 기록. 주차장/차량별 화면에는 activeHistory를 사용한다. */
     static JSONArray history(Context c) {
         Migration.ensure(c);
         return parsed(HISTORY, prefs(c).getString(PREF_HISTORY, "[]"));
+    }
+
+    static boolean isDraft(JSONObject entry) {
+        return entry != null && Json.clean(entry.optString("z", "")).isEmpty();
+    }
+
+    static boolean hasEnded(JSONObject entry) {
+        return entry != null && entry.optLong("e", 0) > 0;
+    }
+
+    /** 아직 차가 그 자리에 있고 구역도 안 적은 초안. 새 기록 대신 이걸 채운다. */
+    private static boolean isOpenDraft(JSONObject entry) {
+        return isDraft(entry) && !hasEnded(entry);
+    }
+
+    /** 시각·좌표 말고는 아무것도 없는 초안. 잠깐의 신호 끊김이었으면 남길 가치가 없다. */
+    private static boolean isBareDraft(JSONObject entry) {
+        return isDraft(entry) && photoOf(entry).isEmpty() && recordMemo(entry).isEmpty();
+    }
+
+    /** 표시용 구역 이름. 초안이면 "구역 미입력". */
+    static String zoneOf(Context c, JSONObject entry) {
+        String zone = entry == null ? "" : Json.clean(entry.optString("z", ""));
+        return zone.isEmpty() ? c.getString(R.string.zone_unset) : zone;
+    }
+
+    static String photoOf(JSONObject entry) {
+        return entry == null ? "" : Json.clean(entry.optString("ph", ""));
+    }
+
+    /** 차량의 가장 최근 기록 (주차장 무관). 없으면 null. */
+    static JSONObject latestForVehicle(Context c, String vehicleId) {
+        JSONArray all = history(c);
+        for (int i = 0; i < all.length(); i++) {
+            JSONObject e = all.optJSONObject(i);
+            if (e != null && vehicleId.equals(e.optString("c"))) return e;
+        }
+        return null;
     }
 
     /**
@@ -1000,7 +1065,60 @@ class Store {
                     : vehicle.optString("id", activeVehicleId(c));
         }
 
+        // 차에서 내린 뒤 아직 구역을 안 적은 초안이 있으면 새 기록을 만들지 않고 그 초안을
+        // 채운다. 알림 버튼·위젯·앱 격자 어느 경로로 눌러도 내린 시각과 좌표가 그대로 남는다.
+        // 예전에는 알림 본문을 탭해 앱을 열고 격자를 누르면 좌표가 지금 자리로, 시각이
+        // 지금으로 바뀌었다 — 끊긴 순간의 사실은 알림 버튼 안에만 살아 있었다.
+        JSONObject draft = latestForVehicle(c, vehicleId);
+        if (isOpenDraft(draft)) {
+            try {
+                draft.put("p", profileId);
+                draft.put("pn", profile == null
+                        ? c.getString(R.string.profile_default_name)
+                        : profile.optString("n", c.getString(R.string.profile_default_name)));
+                draft.put("z", z);
+                String m = Json.clean(memo);
+                if (!m.isEmpty()) draft.put("m", m);
+            } catch (JSONException e) {
+                throw new RuntimeException(e);
+            }
+            commitRecord(c, history(c), profileId, vehicleId);
+            return draft.optString("id");
+        }
+        return create(c, profile, profileId, vehicle, vehicleId, z, memo,
+                useCurrentFix ? Nearby.lastFix(c) : snapshot, eventTime);
+    }
+
+    /**
+     * 블루투스가 끊겼다 = 차에서 내렸다. 시각과 좌표만 담은 초안을 만든다.
+     *
+     * <p>재연결을 놓쳐 빈 초안이 남아 있으면 그 자리를 새 초안이 대신한다. 시각·좌표
+     * 말고 아무것도 없는 기록을 둘 씩 쌓을 이유가 없다.
+     *
+     * @return 초안 id. 차량을 모르면 null.
+     */
+    static String startParking(Context c, String profileId, String vehicleId, Location fix,
+                               long eventTime) {
+        JSONObject vehicle = vehicleById(c, vehicleId);
+        if (vehicle == null) return null;
+        JSONObject profile = profileById(c, profileId);
+        if (profile == null) {
+            profile = activeProfile(c);
+            profileId = profile == null ? activeProfileId(c) : profile.optString("id");
+        }
+        JSONObject previous = latestForVehicle(c, vehicleId);
+        if (isOpenDraft(previous) && isBareDraft(previous)) {
+            deleteRecord(c, previous.optString("id"));
+        }
+        return create(c, profile, profileId, vehicle, vehicleId, "", "", fix, eventTime);
+    }
+
+    /** 새 기록을 목록 앞에 넣고 상한에 맞춰 자른다. zone이 비면 초안이다. */
+    private static String create(Context c, JSONObject profile, String profileId,
+                                 JSONObject vehicle, String vehicleId, String zone, String memo,
+                                 Location fix, long eventTime) {
         String id = UUID.randomUUID().toString();
+        JSONArray old = history(c);
         JSONArray next;
         ArrayList<String> cancelTimers = new ArrayList<>();
         try {
@@ -1014,30 +1132,162 @@ class Store {
                     .put("pn", profile == null
                             ? c.getString(R.string.profile_default_name)
                             : profile.optString("n", c.getString(R.string.profile_default_name)))
-                    .put("z", z)
                     .put("t", eventTime > 0 ? eventTime : System.currentTimeMillis());
+            if (!zone.isEmpty()) entry.put("z", zone);
             String m = Json.clean(memo);
             if (!m.isEmpty()) entry.put("m", m);
 
             // 차를 어디에 뒀는지 좌표로도 남긴다. '위치' 탭이 여기서 거리와 방향을 만든다.
-            // 새 측위는 요청하지 않는다(Nearby의 원칙). 권한이 없거나 좌표가 낡았으면
-            // 그냥 안 붙고, 그 기록은 '위치' 탭에서 안내 문구로 바뀐다.
-            putRecordLocation(entry, useCurrentFix ? Nearby.lastFix(c) : snapshot);
+            // 권한이 없거나 좌표가 낡았으면 그냥 안 붙고, 그 기록은 '위치' 탭에서 안내 문구로 바뀐다.
+            putRecordLocation(entry, fix);
 
-            next = trimHistory(entry, history(c), cancelTimers);
+            next = trimHistory(entry, old, cancelTimers);
         } catch (JSONException e) {
             throw new RuntimeException(e);
         }
         for (String recordId : cancelTimers) ParkingTimers.cancel(c, recordId);
-        // 위젯/알림 액션의 스냅샷을 현재 맥락으로도 전환해 저장 결과가 즉시 보이게 한다.
+        // 잘려 나간 기록의 사진은 더 이상 아무도 가리키지 않는다.
+        if (next.length() <= old.length()) Photos.prune(c, next);
+        commitRecord(c, next, profileId, vehicleId);
+        return id;
+    }
+
+    /** 기록을 저장하고, 위젯/알림 액션의 맥락을 현재 맥락으로도 전환해 저장 결과가 즉시 보이게 한다. */
+    private static void commitRecord(Context c, JSONArray history, String profileId,
+                                     String vehicleId) {
         prefs(c).edit()
-                .putString(PREF_HISTORY, next.toString())
+                .putString(PREF_HISTORY, history.toString())
                 .putString(PREF_ACTIVE_PROFILE, profileId)
                 .putString(PREF_ACTIVE_VEHICLE, vehicleId)
                 .apply();
         Notify.cancelPark(c, vehicleId);
         notifyParkingHistoryChanged(c);
-        return id;
+    }
+
+    /**
+     * 블루투스가 다시 붙었다 = 차에 탔다. 그 차량의 진행 중이던 주차를 닫는다.
+     *
+     * <p>끊긴 지 {@link #FLAP_MS} 안에 붙었고 그 사이 아무것도 안 적었으면 잠깐의 신호
+     * 끊김으로 보고 초안을 지운다. 아니면 출차 시각을 적고, 출차 알림은 이제 의미가
+     * 없으니 함께 해제한다.
+     */
+    static void endParking(Context c, String vehicleId, long now) {
+        JSONArray all = history(c);
+        JSONObject touched;
+        try {
+            touched = closeParking(all, vehicleId, now);
+        } catch (JSONException e) {
+            throw new RuntimeException(e);
+        }
+        if (touched == null) return;
+        String recordId = touched.optString("id");
+        if (touched.optLong("due", 0) > 0) {
+            ParkingTimers.cancel(c, recordId);
+            touched.remove("due");
+        }
+        saveHistory(c, all);
+        notifyParkingHistoryChanged(c);
+    }
+
+    /**
+     * {@link #endParking}의 순수 부분. 손댄 기록을 돌려주고, 오탐으로 지운 기록은
+     * {@code all}에서 빠져 있다. 손댄 게 없으면 null.
+     */
+    static JSONObject closeParking(JSONArray all, String vehicleId, long now)
+            throws JSONException {
+        for (int i = 0; i < all.length(); i++) {
+            JSONObject e = all.optJSONObject(i);
+            if (e == null || !vehicleId.equals(e.optString("c"))) continue;
+            if (hasEnded(e)) return null;
+            if (isBareDraft(e) && now - e.optLong("t", 0) < FLAP_MS) {
+                all.remove(i);
+                return e;
+            }
+            e.put("e", now);
+            return e;
+        }
+        return null;
+    }
+
+    /** 초안에 구역을 채운다. 잠금 화면 위 빠른 입력이 쓴다. */
+    static boolean setZone(Context c, String recordId, String profileId, String zone) {
+        String z = Json.clean(zone);
+        if (z.isEmpty()) return false;
+        JSONArray all = history(c);
+        JSONObject entry = Json.byId(all, recordId);
+        if (entry == null) return false;
+        JSONObject profile = profileById(c, profileId);
+        try {
+            if (profile != null) {
+                entry.put("p", profileId);
+                entry.put("pn", profile.optString("n", c.getString(R.string.profile_default_name)));
+            }
+            entry.put("z", z);
+        } catch (JSONException e) {
+            throw new RuntimeException(e);
+        }
+        saveHistory(c, all);
+        Notify.cancelPark(c, entry.optString("c"));
+        notifyParkingHistoryChanged(c);
+        return true;
+    }
+
+    /** 사진 파일 이름을 기록에 붙이거나(빈 값이면) 뗀다. 파일 자체는 Photos가 다룬다. */
+    static void setPhoto(Context c, String recordId, String fileName) {
+        JSONArray all = history(c);
+        JSONObject entry = Json.byId(all, recordId);
+        if (entry == null) return;
+        String name = Json.clean(fileName);
+        try {
+            if (name.isEmpty()) entry.remove("ph");
+            else entry.put("ph", name);
+        } catch (JSONException e) {
+            throw new RuntimeException(e);
+        }
+        saveHistory(c, all);
+        notifyParkingHistoryChanged(c);
+    }
+
+    /** 음성으로 받은 문장을 메모 뒤에 붙인다. 상한을 넘는 부분은 버린다. */
+    static void appendMemo(Context c, String recordId, String text) {
+        String addition = Json.clean(text);
+        if (addition.isEmpty()) return;
+        JSONArray all = history(c);
+        JSONObject entry = Json.byId(all, recordId);
+        if (entry == null) return;
+        String memo = recordMemo(entry);
+        String next = memo.isEmpty() ? addition : memo + " · " + addition;
+        if (next.length() > MAX_MEMO_LENGTH) next = next.substring(0, MAX_MEMO_LENGTH);
+        try {
+            entry.put("m", next);
+        } catch (JSONException e) {
+            throw new RuntimeException(e);
+        }
+        saveHistory(c, all);
+        notifyParkingHistoryChanged(c);
+    }
+
+    /**
+     * 끊긴 직후 단발 측위로 더 나은 좌표를 잡았을 때. 좌표가 없었거나, 새 좌표가 더 정확하거나,
+     * 저장된 좌표가 새 좌표보다 1분 넘게 낡았으면 바꾼다.
+     */
+    static void improveLocation(Context c, String recordId, Location fix) {
+        if (!Nearby.isValid(fix)) return;
+        JSONArray all = history(c);
+        JSONObject entry = Json.byId(all, recordId);
+        if (entry == null) return;
+        float stored = recordLocationAccuracy(entry);
+        float fresh = Nearby.accuracyOf(fix);
+        boolean better = !recordHasCoords(entry)
+                || (fresh >= 0 && (stored < 0 || fresh <= stored))
+                || fix.getTime() - recordLocationTime(entry) > 60_000L;
+        if (!better) return;
+        try {
+            putRecordLocation(entry, fix);
+        } catch (JSONException e) {
+            throw new RuntimeException(e);
+        }
+        saveHistory(c, all);
     }
 
     /**
@@ -1090,10 +1340,10 @@ class Store {
         return sortHistory(next);
     }
 
+    /** 구역을 비우면 초안으로 돌아간다 — "어디였는지 모르겠다"도 정직한 상태다. */
     static boolean updateRecord(Context c, String recordId, String profileId, String vehicleId,
                                 String zone, long parkedAt, String memo, long timerDue) {
         String z = Json.clean(zone);
-        if (z.isEmpty()) return false;
         JSONArray all = history(c);
         JSONObject entry = Json.byId(all, recordId);
         if (entry == null) return false;
@@ -1116,7 +1366,8 @@ class Store {
                 entry.put("cn", vehicle.optString("n",
                         c.getString(R.string.vehicle_default_name)));
             }
-            entry.put("z", z);
+            if (z.isEmpty()) entry.remove("z");
+            else entry.put("z", z);
             entry.put("t", parkedAt);
             String m = Json.clean(memo);
             if (m.isEmpty()) entry.remove("m");
@@ -1158,6 +1409,7 @@ class Store {
             JSONObject entry = all.optJSONObject(i);
             if (entry != null && recordId.equals(entry.optString("id"))) {
                 ParkingTimers.cancel(c, recordId);
+                Photos.delete(c, photoOf(entry));
                 found = true;
             } else if (entry != null) {
                 next.put(entry);
@@ -1175,9 +1427,10 @@ class Store {
         if (latest != null) deleteRecord(c, latest.optString("id"));
     }
 
+    /** 현재 맥락의 마지막 구역(초안이면 "구역 미입력"). 기록이 없으면 null. */
     static String latestZone(Context c) {
         JSONObject e = latestRecord(c);
-        return e == null ? null : e.optString("z", "?");
+        return e == null ? null : zoneOf(c, e);
     }
 
     static long latestTime(Context c) {
@@ -1329,25 +1582,14 @@ class Store {
         return state != null && state.optBoolean("on", false);
     }
 
-    /** 해당 차량·주차장 프로필 안에서 최근에 쓴 서로 다른 구역. 블루투스 알림 버튼용. */
-    static String[] recentZones(Context c, String profileId, String vehicleId, int max) {
-        ArrayList<String> out = new ArrayList<>();
-        JSONArray h = historyForContext(c, profileId, vehicleId);
-        for (int i = 0; i < h.length() && out.size() < max; i++) {
-            JSONObject e = h.optJSONObject(i);
-            String zone = e == null ? "" : Json.clean(e.optString("z", ""));
-            if (!zone.isEmpty() && !out.contains(zone)) out.add(zone);
-        }
-        String[] main = mainZonesForProfile(c, profileId);
-        for (String zone : main) {
-            if (out.size() >= max) break;
-            if (!out.contains(zone)) out.add(zone);
-        }
-        return out.toArray(new String[0]);
+    /** 해당 차량·주차장에서 자주 댄 순서의 구역. 블루투스 알림 버튼용. */
+    static String[] topZones(Context c, String profileId, String vehicleId, int max) {
+        return rankZones(historyForContext(c, profileId, vehicleId),
+                mainZonesForProfile(c, profileId), max, null);
     }
 
     /**
-     * 홈 위젯에 올릴 구역. 격자가 버튼 수보다 크면 최근에 쓴 구역을 골라 담되,
+     * 홈 위젯에 올릴 구역. 격자가 버튼 수보다 크면 자주 댄 구역을 골라 담되,
      * <b>배치는 격자 순서를 그대로 지킨다</b>. 최근순으로 늘어놓으면 주차할 때마다
      * 버튼이 자리를 바꿔서 손에 익지 않는다.
      */
@@ -1355,22 +1597,49 @@ class Store {
         String[] grid = mainZonesForProfile(c, profileId);
         if (grid.length <= max) return grid;
 
+        // 직접 입력한 일회성 위치(예: 롯데몰)는 위젯 자리를 차지하지 않게 격자 안으로 거른다.
         HashSet<String> inGrid = new HashSet<>(Arrays.asList(grid));
-        LinkedHashSet<String> keep = new LinkedHashSet<>();
-        JSONArray h = historyForContext(c, profileId, vehicleId);
-        for (int i = 0; i < h.length() && keep.size() < max; i++) {
-            JSONObject entry = h.optJSONObject(i);
-            String zone = entry == null ? "" : Json.clean(entry.optString("z", ""));
-            // 직접 입력한 일회성 위치(예: 롯데몰)는 위젯 자리를 차지하지 않게 거른다.
-            if (!zone.isEmpty() && inGrid.contains(zone)) keep.add(zone);
-        }
-        for (String zone : grid) {
-            if (keep.size() >= max) break;
-            keep.add(zone);
-        }
+        HashSet<String> keep = new HashSet<>(Arrays.asList(
+                rankZones(historyForContext(c, profileId, vehicleId), grid, max, inGrid)));
         ArrayList<String> out = new ArrayList<>();
         for (String zone : grid) {
             if (keep.contains(zone)) out.add(zone);
+        }
+        return out.toArray(new String[0]);
+    }
+
+    /**
+     * 자주 댄 순서로 구역을 고른다. 같은 횟수면 최근 것이 먼저다.
+     *
+     * <p>알림 버튼은 두세 개뿐이라 최근순보다 빈도순이 맞는다 — 어제 한 번 댄 손님 주차장
+     * 자리보다 지난 스무 번 중 열네 번 댄 B2-A가 앞에 와야 한다. 모자라면 {@code fill}
+     * (격자 순서)로 채운다.
+     *
+     * @param allowed null이 아니면 이 안의 구역만 센다.
+     */
+    static String[] rankZones(JSONArray history, String[] fill, int max, Set<String> allowed) {
+        LinkedHashMap<String, Integer> counts = new LinkedHashMap<>(); // 삽입 순서 = 최근순
+        for (int i = 0; i < history.length(); i++) {
+            JSONObject e = history.optJSONObject(i);
+            String zone = e == null ? "" : Json.clean(e.optString("z", ""));
+            if (zone.isEmpty() || (allowed != null && !allowed.contains(zone))) continue;
+            Integer n = counts.get(zone);
+            counts.put(zone, n == null ? 1 : n + 1);
+        }
+        ArrayList<Map.Entry<String, Integer>> ranked = new ArrayList<>(counts.entrySet());
+        Collections.sort(ranked, new Comparator<Map.Entry<String, Integer>>() {
+            @Override public int compare(Map.Entry<String, Integer> a, Map.Entry<String, Integer> b) {
+                return b.getValue() - a.getValue(); // 안정 정렬이라 같은 횟수는 최근순 유지
+            }
+        });
+        ArrayList<String> out = new ArrayList<>();
+        for (Map.Entry<String, Integer> entry : ranked) {
+            if (out.size() >= max) break;
+            out.add(entry.getKey());
+        }
+        for (String zone : fill) {
+            if (out.size() >= max) break;
+            if (!out.contains(zone)) out.add(zone);
         }
         return out.toArray(new String[0]);
     }

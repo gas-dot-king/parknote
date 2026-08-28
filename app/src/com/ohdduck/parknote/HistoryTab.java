@@ -141,15 +141,13 @@ class HistoryTab {
 
     private void bind(ViewHolder holder, JSONObject record) {
         holder.recordId = record.optString("id", "");
-        String zone = record.optString("z", "?");
+        String zone = Store.zoneOf(host, record);
         holder.name.setText(zone);
 
-        // 주차장 · 차량 · 메모. 지운 주차장/차량이면 Store가 "삭제됨"을 붙여 준다.
-        StringBuilder meta = new StringBuilder();
-        meta.append(Store.recordProfileName(host, record));
-        meta.append(" · ").append(Store.recordVehicleName(host, record));
+        // 주차장 · 차량 · 주차 시간 · 사진 · 메모. 지운 주차장/차량이면 Store가 "삭제됨"을 붙여 준다.
+        String meta = MainActivity.recordMeta(host, record);
         String memo = Store.recordMemo(record);
-        if (!memo.isEmpty()) meta.append(" · ").append(memo);
+        if (!memo.isEmpty()) meta += " · " + memo;
         holder.sub.setText(meta);
         holder.time.setText(Fmt.full(record.optLong("t", 0)));
         holder.root.setContentDescription(host.getString(R.string.cd_edit_history, zone));

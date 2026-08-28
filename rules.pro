@@ -4,6 +4,8 @@
 -keep class com.ohdduck.parknote.MainActivity { *; }
 -keep class com.ohdduck.parknote.OnboardingActivity { *; }
 -keep class com.ohdduck.parknote.ZoneSettingsActivity { *; }
+-keep class com.ohdduck.parknote.QuickRecordActivity { *; }
+-keep class com.ohdduck.parknote.PhotoProvider { *; }
 -keep class com.ohdduck.parknote.ParkWidgetProvider { *; }
 -keep class com.ohdduck.parknote.BtReceiver { *; }
 -keep class com.ohdduck.parknote.ReminderReceiver { *; }

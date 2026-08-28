@@ -1,26 +1,19 @@
 package com.ohdduck.parknote;
 
 /**
- * 다이얼로그가 데이터를 바꾼 뒤 화면에 알리는 통로.
- *
- * <p>다이얼로그들을 MainActivity에서 떼어내면서 생긴 유일한 결합점이다. 이 인터페이스
- * 하나만 주고받으면 각 다이얼로그는 자기가 어느 화면 위에 떠 있는지 몰라도 된다.
+ * 다이얼로그가 화면을 갱신하거나, 결과를 돌려받아야 하는 시스템 화면(카메라·음성 인식)을
+ * 열어 달라고 부탁하는 통로. MainActivity가 구현한다.
  */
 interface ScreenHost {
 
-    /**
-     * 저장이 끝났으니 화면을 다시 그린다.
-     *
-     * @param zonesChanged 구역 구성(층·구역·기타·주차장 전환)이 바뀌었으면 true.
-     *                     격자 버튼을 통째로 다시 만들어야 한다.
-     */
+    /** 데이터가 바뀌었다. zonesChanged가 참이면 구역 격자까지 다시 만든다. */
     void refresh(boolean zonesChanged);
 
-    /**
-     * 구역 편집 화면을 연다.
-     *
-     * <p>다이얼로그가 아니라 액티비티라 {@code startActivityForResult}를 부를 화면이
-     * 필요하다. 돌아오면 화면이 스스로 갱신한다.
-     */
     void openZoneSettings();
+
+    /** 카메라를 열어 이 기록에 사진을 붙인다. 결과는 Activity가 받아 Photos.onCaptured로 넘긴다. */
+    void capturePhoto(String recordId);
+
+    /** 음성 인식을 연다. 결과 문장은 열려 있는 기록 편집기의 메모에 붙는다. */
+    void captureVoice();
 }

@@ -57,6 +57,16 @@ final class Fmt {
         return (hour / 24) + "일" + suffix;
     }
 
+    /** 주차해 있던 시간. "45분", "2시간 13분", "3일 2시간". */
+    static String duration(long ms) {
+        long min = Math.max(0, ms / 60000);
+        if (min < 60) return min + "분";
+        long hour = min / 60;
+        if (hour < 24) return min % 60 == 0 ? hour + "시간" : hour + "시간 " + (min % 60) + "분";
+        long day = hour / 24;
+        return hour % 24 == 0 ? day + "일" : day + "일 " + (hour % 24) + "시간";
+    }
+
     /** 0시 기준 분 → "오후 9:05" */
     static String minutesOfDay(int m) {
         int h = m / 60;

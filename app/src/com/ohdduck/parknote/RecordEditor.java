@@ -18,14 +18,13 @@ import java.util.ArrayList;
 import java.util.Calendar;
 
 /**
- * 주차 기록 하나를 고치는 화면. 주차장·차량·위치·시각·메모·출차 알림을 함께 다룬다.
+ * 주차 기록 하나를 고치는 화면. 주차장·차량·위치·시각·메모·사진·출차 알림을 함께 다룬다.
  *
  * <p>기록에 붙는 선택지(주차장/차량 고르기, 시각 고르기, 타이머 고르기)가 전부 여기 있어서,
  * 상태 카드의 "수정"과 알림에서 열린 편집기와 전체 기록 목록이 같은 코드를 탄다.
+ * 카메라와 음성 인식은 결과를 Activity가 받아야 하므로 {@link ScreenHost}에 부탁한다.
  */
 class RecordEditor {
-
-    private static final int MAX_MEMO_LENGTH = 200;
 
     private RecordEditor() {
     }
@@ -43,8 +42,7 @@ class RecordEditor {
     /**
      * 떠 있는 편집기 한 개. 호출한 화면이 회전 직전에 {@link #saveState}로 초안을 받아 두고,
      * 다시 만들어진 뒤 {@link #show(Activity, ScreenHost, String, Bundle)}에 돌려주면
-     * 입력 중이던 값이 그대로 살아난다. 구역 편집기가 이미 이렇게 하는데 여기만 대상 id만
-     * 살리고 입력은 버리고 있었다.
+     * 입력 중이던 값이 그대로 살아난다. 카메라·음성 인식 결과도 이 세션으로 돌아온다.
      */
     static final class Session {
         private static final String KEY_RECORD = "record_id";
@@ -57,16 +55,19 @@ class RecordEditor {
 
         final String recordId;
         final AlertDialog dialog;
+        private final Activity activity;
         private final String[] profileId;
         private final String[] vehicleId;
         private final long[] parkedAt;
         private final long[] due;
         private final EditText zone;
         private final EditText memo;
+        private final Button photo;
 
-        private Session(String recordId, AlertDialog dialog, String[] profileId,
-                        String[] vehicleId, long[] parkedAt, long[] due,
-                        EditText zone, EditText memo) {
+        private Session(Activity activity, String recordId, AlertDialog dialog,
+                        String[] profileId, String[] vehicleId, long[] parkedAt, long[] due,
+                        EditText zone, EditText memo, Button photo) {
+            this.activity = activity;
             this.recordId = recordId;
             this.dialog = dialog;
             this.profileId = profileId;
@@ -75,6 +76,7 @@ class RecordEditor {
             this.due = due;
             this.zone = zone;
             this.memo = memo;
+            this.photo = photo;
         }
 
         boolean isShowing() {
@@ -96,6 +98,18 @@ class RecordEditor {
 
         static String recordIdOf(Bundle draft) {
             return draft == null ? null : draft.getString(KEY_RECORD);
+        }
+
+        /** 음성 인식 결과를 메모 뒤에 붙인다. 저장은 사용자가 누른다. */
+        void appendMemo(String text) {
+            String current = memo.getText().toString().trim();
+            memo.setText(current.isEmpty() ? text : current + " · " + text);
+            memo.setSelection(memo.getText().length());
+        }
+
+        /** 사진이 바뀌었다(찍음·지움). 버튼 문구만 다시 쓴다. */
+        void refreshPhoto() {
+            photo.setText(photoLabel(activity, recordId));
         }
     }
 
@@ -151,6 +165,14 @@ class RecordEditor {
         EditText memo = Ui.multilineInput(a, a.getString(R.string.record_memo_hint), 2, 4);
         memo.setText(memoText);
         Ui.addField(form, a.getString(R.string.record_label_memo), memo, 12);
+        if (Voice.available(a)) {
+            Button voiceButton = Ui.pickerButton(a, a.getString(R.string.voice_button));
+            voiceButton.setOnClickListener(v -> host.captureVoice());
+            Ui.add(form, voiceButton, 4);
+        }
+
+        Button photoButton = Ui.pickerButton(a, photoLabel(a, recordId));
+        Ui.addField(form, a.getString(R.string.record_label_photo), photoButton, 12);
 
         Button timerButton = Ui.pickerButton(a, timerButtonText(a, due[0]));
         Ui.addField(form, a.getString(R.string.parking_timer), timerButton, 12);
@@ -182,26 +204,25 @@ class RecordEditor {
                 () -> save(a, host, recordId, profileId[0], vehicleId[0], zone, memo,
                         parkedAt[0], due[0]),
                 parent -> confirmDelete(a, host, recordId, parent));
+        Session session = new Session(a, recordId, dialog, profileId, vehicleId, parkedAt, due,
+                zone, memo, photoButton);
+        photoButton.setOnClickListener(v -> photoMenu(a, host, session));
         dialog.show();
-        return new Session(recordId, dialog, profileId, vehicleId, parkedAt, due, zone, memo);
+        return session;
     }
 
     private static boolean save(Activity a, ScreenHost host, String recordId,
                                 String profileId, String vehicleId,
                                 EditText zone, EditText memo, long parkedAt, long due) {
-        String z = zone.getText().toString().trim();
+        // 구역은 비워도 된다 — "어디였는지 모르겠다"는 초안으로 남는다.
         String m = memo.getText().toString().trim();
-        if (z.isEmpty()) {
-            zone.setError(a.getString(R.string.record_zone_required));
-            zone.requestFocus();
-            return false;
-        }
-        if (m.length() > MAX_MEMO_LENGTH) {
-            memo.setError(a.getString(R.string.record_memo_too_long, MAX_MEMO_LENGTH));
+        if (m.length() > Store.MAX_MEMO_LENGTH) {
+            memo.setError(a.getString(R.string.record_memo_too_long, Store.MAX_MEMO_LENGTH));
             memo.requestFocus();
             return false;
         }
-        if (!Store.updateRecord(a, recordId, profileId, vehicleId, z, parkedAt, m, due)) {
+        if (!Store.updateRecord(a, recordId, profileId, vehicleId,
+                zone.getText().toString(), parkedAt, m, due)) {
             Toast.makeText(a, R.string.record_save_error, Toast.LENGTH_SHORT).show();
             return false;
         }
@@ -218,6 +239,41 @@ class RecordEditor {
                     Store.deleteRecord(a, recordId);
                     host.refresh(false);
                     parent.dismiss();
+                })
+                .setNegativeButton(R.string.action_cancel, null)
+                .show();
+    }
+
+    // ---------- 사진 ----------
+
+    private static String photoLabel(Context c, String recordId) {
+        return c.getString(Photos.exists(c, Store.photoOf(Store.recordById(c, recordId)))
+                ? R.string.photo_exists : R.string.photo_none);
+    }
+
+    /** 사진이 없으면 바로 찍고, 있으면 보기 / 다시 찍기 / 삭제 중에 고른다. */
+    private static void photoMenu(Activity a, ScreenHost host, Session session) {
+        String photo = Store.photoOf(Store.recordById(a, session.recordId));
+        if (!Photos.exists(a, photo)) {
+            host.capturePhoto(session.recordId);
+            return;
+        }
+        new AlertDialog.Builder(a)
+                .setTitle(R.string.record_label_photo)
+                .setItems(new String[]{
+                        a.getString(R.string.photo_view),
+                        a.getString(R.string.photo_retake),
+                        a.getString(R.string.photo_delete)}, (d, which) -> {
+                    if (which == 0) {
+                        Photos.show(a, photo);
+                    } else if (which == 1) {
+                        host.capturePhoto(session.recordId);
+                    } else {
+                        Photos.delete(a, photo);
+                        Store.setPhoto(a, session.recordId, "");
+                        session.refreshPhoto();
+                        host.refresh(false);
+                    }
                 })
                 .setNegativeButton(R.string.action_cancel, null)
                 .show();

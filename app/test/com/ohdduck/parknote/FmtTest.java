@@ -29,6 +29,16 @@ public class FmtTest {
     }
 
     @Test
+    public void duration_단위가_커질수록_아래_단위는_남는_만큼만() {
+        assertEquals("0분", Fmt.duration(0));
+        assertEquals("45분", Fmt.duration(45 * 60_000L));
+        assertEquals("2시간", Fmt.duration(2 * 60 * 60_000L));
+        assertEquals("2시간 13분", Fmt.duration((2 * 60 + 13) * 60_000L));
+        assertEquals("3일 2시간", Fmt.duration((3 * 24 + 2) * 60 * 60_000L));
+        assertEquals("0분", Fmt.duration(-5000)); // 시계가 뒤로 갔어도 음수는 안 보인다
+    }
+
+    @Test
     public void minutesOfDay_오전_오후_경계() {
         assertEquals("오전 12:00", Fmt.minutesOfDay(0));
         assertEquals("오전 9:05", Fmt.minutesOfDay(9 * 60 + 5));

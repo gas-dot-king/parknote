@@ -1,6 +1,7 @@
 package com.ohdduck.parknote;
 
 import android.app.PendingIntent;
+import android.app.RemoteInput;
 import android.appwidget.AppWidgetManager;
 import android.appwidget.AppWidgetProvider;
 import android.content.ComponentName;
@@ -8,6 +9,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.location.Location;
 import android.net.Uri;
+import android.os.Bundle;
 import android.view.View;
 import android.widget.RemoteViews;
 import android.widget.Toast;
@@ -40,7 +42,14 @@ public class ParkWidgetProvider extends AppWidgetProvider {
     public void onReceive(Context ctx, Intent intent) {
         if (ACTION_RECORD.equals(intent.getAction())) {
             String zone = intent.getStringExtra(EXTRA_ZONE);
-            if (zone != null) {
+            if (zone == null) {
+                // 알림의 직접 입력 칸. 시스템이 인텐트에 실어 보낸다.
+                Bundle reply = RemoteInput.getResultsFromIntent(intent);
+                CharSequence typed = reply == null ? null
+                        : reply.getCharSequence(BtReceiver.KEY_REPLY_ZONE);
+                zone = typed == null ? null : Json.clean(typed.toString());
+            }
+            if (zone != null && !zone.isEmpty()) {
                 String profileId = intent.getStringExtra(EXTRA_PROFILE_ID);
                 String vehicleId = intent.getStringExtra(EXTRA_VEHICLE_ID);
                 String recordId;

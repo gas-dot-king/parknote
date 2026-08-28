@@ -8,6 +8,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
 import android.graphics.Typeface;
 import android.location.Location;
 import android.os.Build;
@@ -48,11 +49,14 @@ public class MainActivity extends Activity implements ScreenHost, Tabs.Listener 
 
     private static final int REQ_PERMISSIONS = 1;
     private static final int REQ_ZONE_SETTINGS = 25;
+    private static final int REQ_PHOTO = 26;
+    private static final int REQ_VOICE = 27;
     private static final int HISTORY_SHOWN = 5;
 
     private static final String STATE_PENDING_EDIT = "pending_edit_record_id";
     private static final String STATE_EDITOR = "record_editor";
     private static final String STATE_TAB = "selected_tab";
+    private static final String STATE_PHOTO_TARGET = "photo_target";
 
     private Tabs tabs;
     private HistoryTab historyTab;
@@ -92,6 +96,11 @@ public class MainActivity extends Activity implements ScreenHost, Tabs.Listener 
     private RecordEditor.Session editor;
     /** 마지막으로 전체를 그린 날짜. 자정을 넘기면 습관 체크 상태가 바뀌므로 전체를 다시 그린다. */
     private String renderedDay;
+    /** 카메라가 열려 있는 동안 사진을 붙일 기록. 카메라가 화면을 돌려도 살아남아야 한다. */
+    private String photoTargetId;
+    /** 히어로 썸네일. 매분 다시 그릴 때 같은 사진을 다시 디코딩하지 않는다. */
+    private String heroPhotoName;
+    private Bitmap heroPhoto;
 
     /** 화면이 떠 있는 동안 매분 갱신 ("n분 전" 표시). */
     private final BroadcastReceiver clockTick = new BroadcastReceiver() {
@@ -123,6 +132,7 @@ public class MainActivity extends Activity implements ScreenHost, Tabs.Listener 
         int startTab = Tabs.HOME;
         if (savedInstanceState != null) {
             pendingEditRecordId = savedInstanceState.getString(STATE_PENDING_EDIT);
+            photoTargetId = savedInstanceState.getString(STATE_PHOTO_TARGET);
             // 회전 전에 열려 있던 편집기를 입력 중이던 값까지 그대로 다시 연다.
             Bundle draft = savedInstanceState.getBundle(STATE_EDITOR);
             if (draft != null) {
@@ -195,6 +205,14 @@ public class MainActivity extends Activity implements ScreenHost, Tabs.Listener 
 
         findViewById(R.id.btnDelete).setOnClickListener(v -> confirmDeleteLast());
         findViewById(R.id.btnEdit).setOnClickListener(v -> editLatestRecord());
+        findViewById(R.id.btnPhoto).setOnClickListener(v -> {
+            JSONObject latest = Store.latestRecord(this);
+            if (latest != null) capturePhoto(latest.optString("id"));
+        });
+        heroArt.setOnClickListener(v -> {
+            String photo = Store.photoOf(Store.latestRecord(this));
+            if (Photos.exists(this, photo)) Photos.show(this, photo);
+        });
         findViewById(R.id.btnTimer).setOnClickListener(v -> {
             JSONObject latest = Store.latestRecord(this);
             if (latest != null) RecordEditor.showTimerOnly(this, this, latest.optString("id"));
@@ -254,6 +272,7 @@ public class MainActivity extends Activity implements ScreenHost, Tabs.Listener 
     protected void onSaveInstanceState(Bundle out) {
         super.onSaveInstanceState(out);
         out.putString(STATE_PENDING_EDIT, pendingEditRecordId);
+        out.putString(STATE_PHOTO_TARGET, photoTargetId);
         if (editor != null && editor.isShowing()) out.putBundle(STATE_EDITOR, editor.saveState());
         out.putInt(STATE_TAB, tabs == null ? Tabs.HOME : tabs.current());
     }
@@ -296,6 +315,22 @@ public class MainActivity extends Activity implements ScreenHost, Tabs.Listener 
     @Override
     public void openZoneSettings() {
         startActivityForResult(new Intent(this, ZoneSettingsActivity.class), REQ_ZONE_SETTINGS);
+    }
+
+    @Override
+    public void capturePhoto(String recordId) {
+        photoTargetId = recordId;
+        if (!Photos.startCapture(this, recordId, REQ_PHOTO)) {
+            photoTargetId = null;
+            Toast.makeText(this, R.string.photo_no_camera, Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    @Override
+    public void captureVoice() {
+        if (!Voice.start(this, REQ_VOICE)) {
+            Toast.makeText(this, R.string.voice_unavailable, Toast.LENGTH_SHORT).show();
+        }
     }
 
     // ---------- 권한 · 진입 ----------
@@ -368,6 +403,21 @@ public class MainActivity extends Activity implements ScreenHost, Tabs.Listener 
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == REQ_ZONE_SETTINGS) {
             if (resultCode == RESULT_OK) refresh(true);
+            return;
+        }
+        if (requestCode == REQ_PHOTO) {
+            String target = photoTargetId;
+            photoTargetId = null;
+            if (resultCode != RESULT_OK || target == null) return;
+            Toast.makeText(this, Photos.onCaptured(this, target)
+                    ? R.string.photo_saved : R.string.photo_failed, Toast.LENGTH_SHORT).show();
+            if (editor != null) editor.refreshPhoto();
+            refresh(false);
+            return;
+        }
+        if (requestCode == REQ_VOICE) {
+            String text = resultCode == RESULT_OK ? Voice.result(data) : "";
+            if (!text.isEmpty() && editor != null) editor.appendMemo(text);
             return;
         }
         if (resultCode != RESULT_OK || data == null || data.getData() == null) return;
@@ -462,45 +512,73 @@ public class MainActivity extends Activity implements ScreenHost, Tabs.Listener 
         renderDetectCard();
     }
 
-    /** @return 지금 주차한 구역. 기록이 없으면 null. */
+    /** @return 격자에서 강조할 구역. 기록이 없거나 초안이면 null. */
     private String renderHero(JSONObject latest) {
         if (latest == null) {
             renderHeroEmpty();
             return null;
         }
-        String zone = latest.optString("z", "?");
-        renderHeroSaved(latest, zone, Store.btConnected(this));
-        return zone;
+        String zone = Json.clean(latest.optString("z", ""));
+        renderHeroSaved(latest, zone.isEmpty());
+        return zone.isEmpty() ? null : zone;
     }
 
     /**
-     * 기록이 있을 때의 히어로. 금색 면 + 자동차 그림.
+     * 기록이 있을 때의 히어로. 금색 면 + 자동차 그림(사진이 있으면 사진).
      *
      * <p>이 카드만 accent를 면으로 쓴다. "차를 어디에 뒀는가"가 화면에서 유일하게
      * 즉시 읽혀야 하는 정보라서, 다른 카드와 같은 어두운 면에 두면 우선순위가 안 보인다.
      * 면이 밝으므로 글자는 전부 on_accent(어두운 색)로 뒤집는다.
      *
-     * @param moving 차량 블루투스가 다시 붙었다 = 시동이 켜졌다. 차는 더 이상 그 자리에
-     *               있지 않으니 금색을 내리고 "마지막 주차"로 보여 준다. 예전에는 몰고
-     *               나온 뒤에도 "지금 주차한 곳"이 금색으로 떠 있었다.
+     * <p>출차했거나(블루투스 재연결) 시동이 켜져 있으면 차는 더 이상 그 자리에 없다.
+     * 금색을 내리고 "마지막 주차"로 보여 준다. 예전에는 몰고 나온 뒤에도 "지금 주차한 곳"이
+     * 금색으로 떠 있었다. 초안(구역 미입력)은 차가 그 자리에 있으니 금색이다.
      */
-    private void renderHeroSaved(JSONObject latest, String zone, boolean moving) {
+    private void renderHeroSaved(JSONObject latest, boolean draft) {
         long t = latest.optLong("t", 0);
-        int strong = moving ? colorText : colorOnAccent;
-        int soft = moving ? colorSubtext : colorOnAccent;
-        heroCard.setBackgroundResource(moving ? R.drawable.bg_hero_empty : R.drawable.bg_hero);
-        heroArt.setVisibility(moving ? View.GONE : View.VISIBLE);
+        boolean ended = Store.hasEnded(latest);
+        boolean gone = ended || Store.btConnected(this);
+        int strong = gone ? colorText : colorOnAccent;
+        int soft = gone ? colorSubtext : colorOnAccent;
+        heroCard.setBackgroundResource(gone ? R.drawable.bg_hero_empty : R.drawable.bg_hero);
+        renderHeroArt(Store.photoOf(latest), gone);
 
-        heroLabel.setText(moving ? R.string.hero_moving_label : R.string.hero_saved_label);
+        heroLabel.setText(ended ? R.string.hero_ended_label
+                : gone ? R.string.hero_moving_label
+                : draft ? R.string.hero_draft_label
+                : R.string.hero_saved_label);
         heroLabel.setTextColor(soft);
-        statusZone.setText(zone);
+        statusZone.setText(Store.zoneOf(this, latest));
         statusZone.setTextColor(strong);
-        statusTime.setText(getString(R.string.status_time, Fmt.full(t), Fmt.relative(t)));
+        long end = latest.optLong("e", 0);
+        statusTime.setText(ended
+                ? getString(R.string.status_time_ended, Fmt.full(t), Fmt.time(end),
+                        Fmt.duration(end - t))
+                : getString(R.string.status_time, Fmt.full(t), Fmt.relative(t)));
         statusTime.setTextColor(soft);
         statusMeta.setText(statusMeta(latest));
         statusMeta.setTextColor(soft);
         statusMeta.setVisibility(View.VISIBLE);
         heroActions.setVisibility(View.VISIBLE);
+    }
+
+    /** 사진이 있으면 썸네일, 없으면 자동차 그림. 차가 떠났으면 그림은 숨기고 사진만 남긴다. */
+    private void renderHeroArt(String photo, boolean gone) {
+        if (!photo.equals(heroPhotoName)) {
+            heroPhotoName = photo;
+            heroPhoto = Photos.load(this, photo, dp(96) * 2);
+        }
+        if (heroPhoto != null) {
+            heroArt.setImageBitmap(heroPhoto);
+            heroArt.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            heroArt.setContentDescription(getString(R.string.cd_hero_photo));
+            heroArt.setVisibility(View.VISIBLE);
+            return;
+        }
+        heroArt.setImageResource(R.drawable.ic_car_hero);
+        heroArt.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        heroArt.setContentDescription(null);
+        heroArt.setVisibility(gone ? View.GONE : View.VISIBLE);
     }
 
     /** 기록이 없을 때. 금색은 "저장됨"의 신호라, 저장된 게 없을 때 칠하면 거짓말이 된다. */
@@ -730,14 +808,13 @@ public class MainActivity extends Activity implements ScreenHost, Tabs.Listener 
             row.setPadding(dp(14), dp(10), dp(14), dp(10));
 
             TextView zone = new TextView(this);
-            zone.setText(e.optString("z", "?"));
+            zone.setText(Store.zoneOf(this, e));
             zone.setTextSize(15);
             zone.setTypeface(medium);
             zone.setTextColor(i == 0 ? colorAccent : colorText);
 
             TextView meta = new TextView(this);
-            String metaText = Store.recordProfileName(this, e) + " · "
-                    + Store.recordVehicleName(this, e);
+            String metaText = recordMeta(e);
             String memo = Store.recordMemo(e);
             if (!memo.isEmpty()) metaText += " · " + memo;
             meta.setText(metaText);
@@ -762,10 +839,27 @@ public class MainActivity extends Activity implements ScreenHost, Tabs.Listener 
             row.addView(details);
             row.addView(time);
             row.setOnClickListener(v -> openRecordEditor(recordId));
-            row.setContentDescription(getString(R.string.cd_edit_history,
-                    e.optString("z", getString(R.string.record_label_zone))));
+            row.setContentDescription(getString(R.string.cd_edit_history, Store.zoneOf(this, e)));
             historyList.addView(row);
         }
+    }
+
+    /** 주차장 · 차량 · (주차 시간) · (사진). 홈 최근 목록과 기록 탭이 같은 줄을 쓴다. */
+    static String recordMeta(Context c, JSONObject e) {
+        StringBuilder meta = new StringBuilder();
+        meta.append(Store.recordProfileName(c, e)).append(" · ").append(Store.recordVehicleName(c, e));
+        if (Store.hasEnded(e)) {
+            meta.append(" · ").append(c.getString(R.string.parked_for,
+                    Fmt.duration(e.optLong("e", 0) - e.optLong("t", 0))));
+        }
+        if (Photos.exists(c, Store.photoOf(e))) {
+            meta.append(" · ").append(c.getString(R.string.record_label_photo));
+        }
+        return meta.toString();
+    }
+
+    private String recordMeta(JSONObject e) {
+        return recordMeta(this, e);
     }
 
     /** 습관·기록 목록이 비었을 때의 한 줄 안내. */

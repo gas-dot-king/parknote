@@ -155,11 +155,13 @@
                     android:visibility="gone" />
             </LinearLayout>
 
+            <!-- 자동차 그림. 사진이 있으면 그 자리에 썸네일이 들어가고, 탭하면 크게 본다. -->
             <ImageView
                 android:id="@+id/heroArt"
                 android:layout_width="96dp"
                 android:layout_height="88dp"
                 android:layout_gravity="center_vertical"
+                android:background="?android:attr/selectableItemBackgroundBorderless"
                 android:contentDescription="@null"
                 android:src="@drawable/ic_car_hero" />
         </LinearLayout>
@@ -183,6 +185,14 @@
                 android:gravity="center_vertical|start"
                 android:paddingLeft="0dp"
                 android:text="@string/parking_timer"
+                android:textColor="@color/subtext" />
+
+            <!-- 내려서 사진 한 장. 기둥 번호 표지판이 구역 이름보다 확실할 때가 있다. -->
+            <Button
+                android:id="@+id/btnPhoto"
+                style="@style/InlineAction"
+                android:contentDescription="@string/cd_hero_photo_action"
+                android:text="@string/photo_action"
                 android:textColor="@color/subtext" />
 
             <Button

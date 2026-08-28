@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  잠금 화면 위 빠른 입력 (QuickRecordActivity). 블루투스 끊김 알림을 탭하면 열린다.
+  홈 탭의 격자 부분만 떼어 온 모양이라, 알림 → 구역 두 번의 탭으로 끝난다.
+-->
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/quickRoot"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true"
+    android:paddingLeft="@dimen/page_padding"
+    android:paddingTop="28dp"
+    android:paddingRight="@dimen/page_padding"
+    android:paddingBottom="20dp"
+    android:scrollbars="none">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="@dimen/gutter"
+            android:fontFamily="sans-serif-medium"
+            android:letterSpacing="-0.02"
+            android:text="@string/zone_prompt"
+            android:textColor="@color/text"
+            android:textSize="24sp" />
+
+        <TextView
+            android:id="@+id/quickSubtitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="@dimen/gutter"
+            android:layout_marginTop="6dp"
+            android:fontFamily="sans-serif"
+            android:textColor="@color/subtext"
+            android:textSize="14sp" />
+
+        <TextView
+            android:id="@+id/quickTime"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="@dimen/gutter"
+            android:layout_marginTop="2dp"
+            android:fontFamily="sans-serif"
+            android:textColor="@color/accent_text"
+            android:textSize="13sp" />
+
+        <LinearLayout
+            android:id="@+id/quickGrid"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="18dp"
+            android:orientation="vertical" />
+
+        <LinearLayout
+            android:id="@+id/quickEtc"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:orientation="vertical" />
+
+        <Button
+            android:id="@+id/quickCustom"
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/touch_min"
+            android:layout_marginLeft="@dimen/gutter"
+            android:layout_marginRight="@dimen/gutter"
+            android:layout_marginTop="6dp"
+            android:background="@drawable/bg_button"
+            android:fontFamily="sans-serif"
+            android:stateListAnimator="@null"
+            android:text="@string/custom_input"
+            android:textAllCaps="false"
+            android:textColor="@color/subtext"
+            android:textSize="14sp" />
+
+        <!-- 사진·음성은 구역과 별개로 붙는다. 구역을 아직 몰라도 표지판 사진부터 찍을 수 있다.
+             홈의 격자 칸과 같은 면 버튼이라 lint의 버튼 바(테두리 없는 스타일) 규칙은 맞지 않는다. -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:orientation="horizontal"
+            tools:ignore="ButtonStyle">
+
+            <Button
+                android:id="@+id/quickPhoto"
+                android:layout_width="0dp"
+                android:layout_height="@dimen/touch_min"
+                android:layout_margin="@dimen/gutter"
+                android:layout_weight="1"
+                android:background="@drawable/bg_button"
+                android:fontFamily="sans-serif-medium"
+                android:stateListAnimator="@null"
+                android:text="@string/quick_photo"
+                android:textAllCaps="false"
+                android:textColor="@color/accent_text"
+                android:textSize="14sp" />
+
+            <Button
+                android:id="@+id/quickVoice"
+                android:layout_width="0dp"
+                android:layout_height="@dimen/touch_min"
+                android:layout_margin="@dimen/gutter"
+                android:layout_weight="1"
+                android:background="@drawable/bg_button"
+                android:fontFamily="sans-serif-medium"
+                android:stateListAnimator="@null"
+                android:text="@string/quick_voice"
+                android:textAllCaps="false"
+                android:textColor="@color/accent_text"
+                android:textSize="14sp" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/quickMemo"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="@dimen/gutter"
+            android:layout_marginRight="@dimen/gutter"
+            android:layout_marginTop="8dp"
+            android:fontFamily="sans-serif"
+            android:textColor="@color/subtext"
+            android:textSize="13sp"
+            android:visibility="gone" />
+
+        <Button
+            android:id="@+id/quickLater"
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/touch_min"
+            android:layout_marginLeft="@dimen/gutter"
+            android:layout_marginRight="@dimen/gutter"
+            android:layout_marginTop="16dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:fontFamily="sans-serif"
+            android:stateListAnimator="@null"
+            android:text="@string/quick_later"
+            android:textAllCaps="false"
+            android:textColor="@color/subtext"
+            android:textSize="14sp" />
+    </LinearLayout>
+</ScrollView>

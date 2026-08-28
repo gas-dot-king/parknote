@@ -30,6 +30,13 @@
         android:name="android.hardware.bluetooth"
         android:required="false" />
 
+    <!-- 음성 인식 앱이 있는지 묻기 위해(Android 11+ 패키지 가시성). 없으면 버튼을 숨긴다. -->
+    <queries>
+        <intent>
+            <action android:name="android.speech.action.RECOGNIZE_SPEECH" />
+        </intent>
+    </queries>
+
     <!-- allowBackup은 true로 둔다. false면 클라우드 백업뿐 아니라 기기 이전(D2D)까지
          제조사에 따라 함께 꺼져서 data_extraction_rules의 device-transfer 선언이 죽는다.
          클라우드로 아무것도 보내지 않는 건 두 규칙 파일이 맡는다:
@@ -68,6 +75,22 @@
             android:exported="false"
             android:label="@string/zone_edit"
             android:windowSoftInputMode="adjustResize" />
+
+        <!-- 잠금 화면 위 빠른 입력. 블루투스 끊김 알림을 탭하면 열린다. 자기 태스크로
+             띄워 메인 화면 위에 쌓이지 않고, 최근 앱 목록에도 남기지 않는다. -->
+        <activity
+            android:name=".QuickRecordActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:label="@string/zone_prompt"
+            android:taskAffinity="" />
+
+        <!-- 카메라 앱이 주차 사진을 쓸 자리. 촬영 인텐트에 붙는 임시 권한으로만 열린다. -->
+        <provider
+            android:name=".PhotoProvider"
+            android:authorities="com.ohdduck.parknote.photos"
+            android:exported="false"
+            android:grantUriPermissions="true" />
 
         <!-- 홈 화면 위젯 -->
         <receiver
